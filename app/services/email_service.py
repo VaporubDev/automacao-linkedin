@@ -92,10 +92,8 @@ async def send_approval_email(post_data: Dict[str, Any]) -> bool:
 </html>
 """
 
-    resend_api_key = get_setting("resend_api_key")
-
-    # Se tiver chave do Resend configurada, envia via API HTTP do Resend
-    if resend_api_key:
+    resend_api_key = (get_setting("resend_api_key") or "").strip()
+    if resend_api_key and resend_api_key.startswith("re_"):
         import httpx
         payload = {
             "from": get_setting("email_from_custom") or "GitPost <onboarding@resend.dev>",
@@ -164,9 +162,8 @@ Para editar: {edit_url}
         raise e
 
 async def send_test_email(to_email: str) -> bool:
-    """Envia um email de teste para verificar as credenciais SMTP ou Resend."""
-    resend_api_key = get_setting("resend_api_key")
-    if resend_api_key:
+    resend_api_key = (get_setting("resend_api_key") or "").strip()
+    if resend_api_key and resend_api_key.startswith("re_"):
         import httpx
         html = f"""
         <div style="font-family: sans-serif; background: #0f172a; color: #f8fafc; padding: 24px; border-radius: 12px; max-width: 500px;">
