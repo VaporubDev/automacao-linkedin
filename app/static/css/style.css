@@ -85,6 +85,12 @@
   --shadow-hover: 0 10px 24px -2px rgba(10, 102, 194, 0.18);
 }
 
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+  width: 100%;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -1398,29 +1404,78 @@ input:focus, select:focus, textarea:focus,
 }
 
 @media (max-width: 768px) {
+  html, body {
+    overflow-x: hidden !important;
+    width: 100% !important;
+    position: relative;
+  }
   .container {
     padding: 14px 10px 40px;
+    max-width: 100% !important;
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
   .app-header {
     position: relative;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
   .header-inner {
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
     padding: 10px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
   .logo-wrapper {
-    justify-content: space-between;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
     width: 100%;
+    box-sizing: border-box;
   }
   .header-actions {
+    display: flex;
     justify-content: space-between;
+    align-items: center;
     width: 100%;
-    gap: 8px;
+    gap: 6px;
+    box-sizing: border-box;
+  }
+  .status-pill {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+    padding: 6px 8px;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .theme-toggle-btn {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+    padding: 6px 8px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  #btn-quick-check {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+    padding: 6px 8px;
+    font-size: 11px;
+    white-space: nowrap;
   }
   .nav-segmented {
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     display: flex;
     padding: 3px;
     gap: 3px;
@@ -1430,43 +1485,68 @@ input:focus, select:focus, textarea:focus,
   .nav-segment-btn {
     flex: 1 1 0;
     min-width: 0;
-    padding: 7px 6px;
-    font-size: 11.5px;
-    gap: 5px;
+    padding: 7px 4px;
+    font-size: 11px;
+    gap: 4px;
     justify-content: center;
+    white-space: nowrap;
+  }
+  .nav-segment-btn span {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .pipeline-flow-strip {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     justify-content: flex-start;
     padding: 8px 10px;
     gap: 6px;
     font-size: 11px;
+    overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
   .flow-step {
     padding: 3px 8px;
     font-size: 11px;
+    flex-shrink: 0;
   }
   .section-header {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
     margin-bottom: 16px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .section-title {
+    width: 100%;
+    box-sizing: border-box;
   }
   .section-title h2 {
     font-size: 18px;
+    word-break: break-word;
+  }
+  .section-title p {
+    font-size: 12.5px;
+    word-break: break-word;
   }
   .controls-group {
     flex-direction: column;
     align-items: stretch;
     width: 100%;
     gap: 8px;
+    box-sizing: border-box;
   }
   .controls-group .btn,
   .controls-group .search-box {
     width: 100%;
     min-width: 0;
+    box-sizing: border-box;
   }
   .filter-pills-row {
+    width: 100%;
+    box-sizing: border-box;
     overflow-x: auto;
     flex-wrap: nowrap;
     padding-bottom: 6px;
@@ -1481,28 +1561,38 @@ input:focus, select:focus, textarea:focus,
   .repos-grid {
     grid-template-columns: 1fr;
     gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
   }
   .repo-card {
     padding: 14px;
+    width: 100%;
+    box-sizing: border-box;
   }
   .posts-list {
     gap: 14px;
+    width: 100%;
+    box-sizing: border-box;
   }
   .post-card {
     padding: 14px;
     border-radius: var(--radius-sm);
+    width: 100%;
+    box-sizing: border-box;
   }
   .post-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
     width: 100%;
+    box-sizing: border-box;
   }
   .post-header > div:last-child {
     display: flex;
     align-items: center;
     justify-content: space-between;
     width: 100%;
+    box-sizing: border-box;
   }
   .post-commit-info {
     flex-direction: column;
@@ -1511,6 +1601,8 @@ input:focus, select:focus, textarea:focus,
     padding: 8px 10px;
     font-size: 12px;
     word-break: break-word;
+    width: 100%;
+    box-sizing: border-box;
   }
   .post-commit-info > span:nth-child(2),
   .post-commit-info > span:nth-child(4) {
@@ -1520,22 +1612,28 @@ input:focus, select:focus, textarea:focus,
     font-size: 13px;
     padding: 10px;
     min-height: 120px;
+    width: 100%;
+    box-sizing: border-box;
   }
   .post-actions {
     flex-direction: column;
     align-items: stretch;
     width: 100%;
     gap: 8px;
+    box-sizing: border-box;
   }
   .post-actions .btn {
     width: 100%;
     justify-content: center;
     padding: 9px 12px;
+    box-sizing: border-box;
   }
   .post-actions > div {
     flex-direction: column;
     align-items: stretch !important;
     gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
   }
   .settings-grid {
     columns: 1 !important;
@@ -1543,24 +1641,37 @@ input:focus, select:focus, textarea:focus,
     display: flex;
     flex-direction: column;
     gap: 14px;
+    width: 100%;
+    box-sizing: border-box;
   }
   .settings-card {
     margin-bottom: 0;
     padding: 14px 12px;
     width: 100%;
     box-sizing: border-box;
+    overflow-x: hidden;
   }
   .settings-card h3 {
     font-size: 14.5px;
+    word-break: break-word;
+  }
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    max-width: 100%;
+    box-sizing: border-box;
   }
   .form-row {
     flex-direction: column;
     gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
   }
   #btn-save-settings {
     width: 100%;
     padding: 10px;
     font-size: 13.5px;
+    box-sizing: border-box;
   }
   #toast-container {
     left: 10px;
@@ -1584,18 +1695,34 @@ input:focus, select:focus, textarea:focus,
     padding: 1px 5px;
   }
   .status-pill {
-    padding: 4px 6px;
+    padding: 5px 4px;
     font-size: 10px;
+    gap: 4px;
   }
   .theme-toggle-btn {
-    padding: 5px 8px;
-    font-size: 11px;
+    padding: 5px 6px;
+    font-size: 10.5px;
+    gap: 4px;
+  }
+  #btn-quick-check {
+    padding: 5px 6px;
+    font-size: 10.5px;
+    gap: 4px;
   }
   .btn {
     padding: 8px 10px;
     font-size: 12px;
   }
+  .nav-segment-btn {
+    padding: 6px 3px;
+    font-size: 10.5px;
+    gap: 3px;
+  }
   .nav-segment-btn span:not(.ui-icon):not(.tab-counter) {
-    font-size: 11px;
+    font-size: 10px;
+  }
+  .tab-counter {
+    padding: 1px 4px;
+    font-size: 9.5px;
   }
 }
