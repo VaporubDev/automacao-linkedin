@@ -1,3 +1,4 @@
+import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -15,7 +16,13 @@ async def send_approval_email(post_data: Dict[str, Any]) -> bool:
     smtp_user = get_setting("smtp_user")
     smtp_pass = get_setting("smtp_pass")
     smtp_from = get_setting("smtp_from") or smtp_user
-    base_url = get_setting("app_base_url", "http://localhost:8000").rstrip("/")
+    base_url = (get_setting("app_base_url") or "").rstrip("/")
+    if not base_url or "localhost" in base_url or "127.0.0.1" in base_url:
+        render_url = os.getenv("RENDER_EXTERNAL_URL")
+        if render_url:
+            base_url = render_url.rstrip("/")
+        else:
+            base_url = "https://linkedin-b0cv.onrender.com"
 
     post_id = post_data["id"]
     repo_name = post_data["repo_name"]

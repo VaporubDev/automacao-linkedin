@@ -535,6 +535,13 @@ async function loadSettings() {
     }
   }
 
+  const appBaseUrlInput = document.getElementById('setting-app_base_url');
+  if (appBaseUrlInput && (!appBaseUrlInput.value || appBaseUrlInput.value.includes('localhost') || appBaseUrlInput.value.includes('127.0.0.1'))) {
+    if (window.location.origin && !window.location.origin.includes('localhost') && !window.location.origin.includes('127.0.0.1')) {
+      appBaseUrlInput.value = window.location.origin;
+    }
+  }
+
   if (Object.keys(deviceSettings).length > 0) {
     try {
       await fetch('/api/settings', {
