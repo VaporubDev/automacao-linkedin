@@ -80,9 +80,38 @@ O painel estará disponível no navegador em:
 Na aba **Ajustes** da interface você pode definir:
 
 1. **GitHub:** Usuário do GitHub e/ou Personal Access Token para acesso a repositórios privados.
-2. **E-mail:** E-mail de destino para aprovações. Configure SMTP tradicional (ex: Gmail porta 587 com Senha de App) ou API Key do Resend.
+2. **E-mail:** E-mail de destino para aprovações via Gmail/SMTP ou API Key do Resend.
 3. **LinkedIn:** Token de acesso oficial gerado no portal de desenvolvedores do LinkedIn ou deixe o *Modo Simulação* ligado para testes.
 4. **Gemini IA:** Chave de API gratuita obtida no Google AI Studio e instruções personalizadas de escrita.
+
+### Como configurar o E-mail de Aprovação
+
+O GitPost oferece duas opções simples para envio de e-mails:
+
+#### Opção A: Rodando no seu computador (Gmail / SMTP gratuito - Sem cadastro em outro serviço)
+Se você estiver executando o GitPost localmente (`localhost`), pode usar qualquer conta do Gmail:
+1. Acesse as [Configurações de Segurança do Google](https://myaccount.google.com/security).
+2. Ative a **Verificação em duas etapas** (caso ainda não esteja ativa).
+3. Pesquise por **"Senhas de app"** (ou acesse `myaccount.google.com/apppasswords`).
+4. Crie uma senha com o nome `GitPost` e copie o código gerado de 16 letras.
+5. No painel do GitPost, na aba **Ajustes**:
+   - **Servidor SMTP:** `smtp.gmail.com`
+   - **Porta:** `465` (com SSL) ou `587` (com TLS)
+   - **Usuário SMTP:** seu e-mail do Gmail
+   - **Senha de App:** o código de 16 letras gerado
+   - **Seu Email (Destinatário):** o e-mail onde deseja receber os alertas
+6. Clique em **Salvar Configurações** e teste no botão **Enviar Email de Teste**.
+
+---
+
+#### Opção B: Rodando na Nuvem / Deploy (Render, Railway, Fly.io via Resend)
+Em provedores de nuvem gratuitos, conexões SMTP tradicionais (portas 465/587) são bloqueadas para evitar spam. Nesses casos, o envio via API HTTP é a solução:
+1. Crie uma conta gratuita em [resend.com](https://resend.com).
+2. Vá em **API Keys** e crie uma chave (começa com `re_...`).
+3. No painel do GitPost, na aba **Ajustes**, cole a chave no campo **Alternativa: Chave de API do Resend**.
+4. Deixe o campo de senha SMTP vazio e clique em **Salvar Configurações**.
+
+> **Nota:** O envio por e-mail é opcional. Você também pode aprovar e publicar posts diretamente pela aba **Fila de Posts** no painel web com apenas 1 clique!
 
 ---
 
