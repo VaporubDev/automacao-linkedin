@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <!-- Rich Blue Gradient (Deep Navy to LinkedIn Royal Blue) -->
+    <linearGradient id="gpBaseGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a66c2" />
+      <stop offset="45%" stop-color="#1d3557" />
+      <stop offset="100%" stop-color="#0d1b2a" />
+    </linearGradient>
+
+    <!-- Electric Cyan to Pure Ice Gradient for Connection Lines -->
+    <linearGradient id="gpLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#f1faee" />
+    </linearGradient>
+
+    <!-- Subtle Glow Filter -->
+    <filter id="gpBlueGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.5" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Base Rounded Shield (Deep Blue Frame) -->
+  <rect width="48" height="48" rx="12" fill="url(#gpBaseGrad)" stroke="#38bdf8" stroke-width="1.2" stroke-opacity="0.45" />
+
+  <!-- Inner Tech Coordinate Grid Line -->
+  <path d="M8 24H40" stroke="#38bdf8" stroke-width="0.75" stroke-dasharray="2 3" opacity="0.25" />
+
+  <!-- Pipeline Neural Flow (Branch from GitHub to AI to LinkedIn Launch) -->
+  <path d="M14 33V22C14 17.5817 17.5817 14 22 14H32" stroke="url(#gpLineGrad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M22 14L34 26" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.9" />
+
+  <!-- Node 1: Origin Source / GitHub Commit Branch (Bottom Left) -->
+  <circle cx="14" cy="33" r="4.5" fill="#0d1b2a" stroke="#38bdf8" stroke-width="2.2" />
+  <circle cx="14" cy="33" r="1.8" fill="#38bdf8" />
+
+  <!-- Node 2: AI Synapse / Gemini Curating (Center Top) -->
+  <circle cx="22" cy="14" r="3.5" fill="#0a66c2" stroke="#f1faee" stroke-width="2" />
+
+  <!-- Node 3: LinkedIn Target / Launch Rocket Apex (Right) -->
+  <circle cx="34" cy="26" r="5.5" fill="#f1faee" stroke="#0a66c2" stroke-width="2.2" filter="url(#gpBlueGlow)" />
+  <!-- Apex Arrow/Paper Rocket Symbol in LinkedIn Royal Blue -->
+  <polygon points="34,23.5 36.8,28.2 31.2,28.2" fill="#0a66c2" />
+
+  <!-- Innovation Sparkle Accent (Top Right) -->
+  <path d="M36 10L37.2 12.8L40 14L37.2 15.2L36 18L34.8 15.2L32 14L34.8 12.8Z" fill="#38bdf8" />
+</svg>

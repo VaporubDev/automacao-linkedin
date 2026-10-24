@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitPost &bull; Automação GitHub para LinkedIn</title>
+  <meta name="description" content="Pipeline inteligente de publicação: detecte novidades no GitHub, gere posts com IA e publique no LinkedIn.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="icon" type="image/svg+xml" href="/static/icons/logo.svg">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="app-header" id="main-navbar">
+    <div class="header-inner">
+      <div class="logo-wrapper">
+        <div class="brand-icon-box">
+          <img src="/static/icons/logo.svg?v=3" alt="GitPost Logo">
+        </div>
+        <div class="logo-text">
+          <div class="logo-title-row">
+            <h1>GitPost</h1>
+            <span class="pipeline-badge">Pipeline Ativo</span>
+          </div>
+          <p class="logo-subtitle">
+            <span>GitHub</span>
+            <span class="sep">&rarr;</span>
+            <span>Gemini IA</span>
+            <span class="sep">&rarr;</span>
+            <span>LinkedIn</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- NAVEGAÇÃO PRINCIPAL -->
+      <nav class="nav-segmented" aria-label="Navegação Principal">
+        <button class="nav-segment-btn active" data-tab="tab-repos" id="tab-btn-repos">
+          <span class="ui-icon icon-repo sm"></span>
+          <span>Repositórios</span>
+          <span class="tab-counter" id="tab-repos-badge">0</span>
+        </button>
+        <button class="nav-segment-btn" data-tab="tab-posts" id="tab-btn-posts">
+          <span class="ui-icon icon-inbox sm"></span>
+          <span>Fila de Posts</span>
+          <span class="tab-counter" id="tab-posts-badge">0</span>
+        </button>
+        <button class="nav-segment-btn" data-tab="tab-settings" id="tab-btn-settings">
+          <span class="ui-icon icon-settings sm"></span>
+          <span>Ajustes</span>
+        </button>
+      </nav>
+
+      <!-- AÇÕES -->
+      <div class="header-actions">
+        <div class="status-pill" title="Serviço ativo em segundo plano">
+          <span class="pulse-dot"></span>
+          <span class="status-pill-text">Sincronizado</span>
+        </div>
+        <button class="btn btn-secondary theme-toggle-btn" id="btn-theme-toggle" onclick="toggleTheme()" title="Alternar tema claro/escuro">
+          <span class="ui-icon icon-sun sm" id="theme-icon"></span>
+          <span id="theme-text">Claro</span>
+        </button>
+        <button class="btn btn-primary" id="btn-quick-check" onclick="triggerManualCheck()">
+          <span class="ui-icon icon-bolt sm"></span>
+          <span>Verificar</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MONITOR DE PIPELINE -->
+  <div class="pipeline-flow-strip">
+    <div class="flow-step step-git">
+      <span class="flow-dot"></span>
+      <span class="ui-icon icon-github sm"></span>
+      <span>1. Commits & Tags</span>
+    </div>
+    <div class="flow-divider"></div>
+    <div class="flow-step step-ai">
+      <span class="flow-dot"></span>
+      <span class="ui-icon icon-sparkles sm"></span>
+      <span>2. Curadoria Gemini</span>
+    </div>
+    <div class="flow-divider"></div>
+    <div class="flow-step step-in">
+      <span class="flow-dot"></span>
+      <span class="ui-icon icon-linkedin sm"></span>
+      <span>3. Post LinkedIn</span>
+    </div>
+  </div>
+
+  <main class="container">
+
+    <section class="tab-content active" id="tab-repos">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>
+            <span class="ui-icon icon-github lg" style="color: #38bdf8;"></span> 
+            Repositórios do GitHub
+          </h2>
+          <p>
+            Escolha quais repositórios monitorar. Ao ativar um projeto ou clicar em anunciar novidade, a IA redige uma publicação técnica para o LinkedIn!
+            (Total: <strong id="total-repos-counter">0</strong> | Monitorando: <strong id="monitored-repos-counter" style="color: #38bdf8;">0</strong>)
+          </p>
+        </div>
+        <div class="controls-group">
+          <div class="search-box">
+            <span class="search-icon-wrapper">
+              <span class="ui-icon icon-search sm"></span>
+            </span>
+            <input type="text" id="repo-search" placeholder="Buscar repositório ou stack..." autocomplete="off">
+          </div>
+          <button class="btn btn-secondary" onclick="resetRepositories()" title="Limpar lista para refazer o reconhecimento do zero">
+            <span class="ui-icon icon-trash sm"></span> Limpar Lista
+          </button>
+          <button class="btn btn-primary" id="btn-sync-repos" onclick="syncRepositories()">
+            <span class="ui-icon icon-sync sm"></span> Sincronizar com GitHub
+          </button>
+        </div>
+      </div>
+
+      <div class="repos-grid" id="repos-grid"></div>
+    </section>
+
+    <section class="tab-content" id="tab-posts">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>
+            <span class="ui-icon icon-linkedin lg" style="color: #0a66c2;"></span> 
+            Fila de Publicações para o LinkedIn
+          </h2>
+          <p>Revise as novidades e lançamentos gerados pela IA, edite o texto se desejar e aprove para envio direto ao seu perfil profissional.</p>
+        </div>
+        <div class="controls-group">
+          <button class="btn btn-secondary" onclick="clearAnsweredPosts()" title="Remove da lista todos os posts já publicados, rejeitados ou finalizados">
+            <span class="ui-icon icon-trash sm"></span> Limpar Respondidos
+          </button>
+          <button class="btn btn-secondary" id="btn-manual-check" onclick="triggerManualCheck()">
+            <span class="ui-icon icon-bolt sm"></span> Checar GitHub Agora
+          </button>
+          <button class="btn btn-primary" id="btn-simulate-new-repo" onclick="simulateNewRepo()">
+            <span class="ui-icon icon-sparkles sm"></span> Simular Post de Novidade
+          </button>
+        </div>
+      </div>
+
+      <div class="filter-pills-row">
+        <button class="filter-pill active" id="filter-all" onclick="filterPosts('all')">
+          Todos os Registros
+        </button>
+        <button class="filter-pill" id="filter-pending" onclick="filterPosts('pending')">
+          <span class="ui-icon icon-clock sm" style="color: #38bdf8;"></span> Pendentes (<span id="count-pending">0</span>)
+        </button>
+        <button class="filter-pill" id="filter-published" onclick="filterPosts('published')">
+          <span class="ui-icon icon-check sm" style="color: #0a66c2;"></span> Publicados (<span id="count-published">0</span>)
+        </button>
+        <button class="filter-pill" id="filter-rejected" onclick="filterPosts('rejected')">
+          <span class="ui-icon icon-close sm" style="color: #f87171;"></span> Rejeitados (<span id="count-rejected">0</span>)
+        </button>
+      </div>
+
+      <div class="posts-list" id="posts-list"></div>
+    </section>
+
+    <section class="tab-content" id="tab-settings">
+      <form id="settings-form">
+        <div class="section-header">
+          <div class="section-title">
+            <h2>
+              <span class="ui-icon icon-settings lg" style="color: #94a3b8;"></span> 
+              Configurações & Conexões
+            </h2>
+            <p>Gerencie suas credenciais do GitHub, LinkedIn, servidor de Email e inteligência artificial Gemini.</p>
+          </div>
+          <button type="submit" class="btn btn-primary" id="btn-save-settings">
+            <span class="ui-icon icon-save sm"></span> Salvar Configurações
+          </button>
+        </div>
+
+        <div class="settings-grid">
+
+          <!-- CARD GITHUB -->
+          <div class="settings-card">
+            <h3>
+              <span class="ui-icon icon-github" style="color: var(--accent-primary);"></span> 
+              Integração com GitHub
+            </h3>
+            <p class="subtitle">Insira seu usuário ou Personal Access Token para listar repositórios públicos e privados.</p>
+
+            <div class="form-group">
+              <label for="setting-github_username">
+                Nome de Usuário no GitHub
+                <span class="info-bubble" data-tooltip="Seu handle público do GitHub (ex: octocat). Permite listar repositórios públicos sem token.">?</span>
+              </label>
+              <input type="text" id="setting-github_username" placeholder="ex: seu-usuario-github" autocomplete="off" spellcheck="false">
+              <div class="hint">Usado para buscar repositórios públicos mesmo sem token.</div>
+            </div>
+
+            <div class="form-group">
+              <label for="setting-github_token">
+                Personal Access Token (PAT)
+                <span class="info-bubble" data-tooltip="Token gerado no GitHub (Settings > Developer Settings > Tokens). Necessário para repositórios privados e evitar limites de requisição.">?</span>
+              </label>
+              <input type="password" id="setting-github_token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="new-password">
+              <div class="hint">Recomendado para repositórios privados e maior limite de requisições (escopo: repo).</div>
+            </div>
+
+            <div class="form-group">
+              <label for="setting-check_interval_minutes">
+                Intervalo de Verificação (em minutos)
+                <span class="info-bubble" data-tooltip="Tempo em minutos que o monitor de background aguarda entre uma checagem de commits e outra.">?</span>
+              </label>
+              <input type="number" id="setting-check_interval_minutes" min="1" max="1440" value="5">
+              <div class="hint">Frequência em minutos com que o robô analisa novos commits.</div>
+            </div>
+          </div>
+
+          <!-- CARD EMAIL NOTIFICAÇÃO -->
+          <div class="settings-card">
+            <h3>
+              <span class="ui-icon icon-mail" style="color: var(--accent-primary);"></span> 
+              Envio de Email & Notificações
+            </h3>
+            <p class="subtitle">Receba avisos instantâneos com botões para autorizar o post no LinkedIn direto da sua caixa de entrada.</p>
+
+            <div class="form-group">
+              <label for="setting-email_recipient">
+                Seu Email (Destinatário para aprovação)
+                <span class="info-bubble" data-tooltip="O endereço para onde serão enviados os alertas com o botão de publicar no LinkedIn em 1 clique.">?</span>
+              </label>
+              <input type="email" id="setting-email_recipient" placeholder="seuemail@exemplo.com">
+              <div class="hint">É neste email que você receberá o botão de aprovação com 1 clique.</div>
+            </div>
+
+            <!-- SERVIDOR SMTP -->
+            <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 12px;">
+              <label style="font-weight: 600; color: var(--text-main); display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span class="ui-icon icon-mail sm" style="color: var(--accent-primary);"></span> Servidor SMTP (Gmail, Outlook ou Próprio)
+                <span class="info-bubble" data-tooltip="Envio clássico por SMTP. Se usar Gmail, gere uma Senha de App nas configurações de segurança do Google.">?</span>
+              </label>
+
+              <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+                <div class="form-group" style="flex: 2; margin-bottom: 0;">
+                  <label for="setting-smtp_host">Servidor SMTP</label>
+                  <input type="text" id="setting-smtp_host" value="smtp.gmail.com" placeholder="smtp.gmail.com">
+                </div>
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                  <label for="setting-smtp_port">Porta</label>
+                  <input type="number" id="setting-smtp_port" value="587">
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                  <label for="setting-smtp_user">Usuário SMTP</label>
+                  <input type="text" id="setting-smtp_user" placeholder="seu-email@gmail.com">
+                </div>
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                  <label for="setting-smtp_from">Email Remetente (Opcional)</label>
+                  <input type="text" id="setting-smtp_from" placeholder="notificacoes@seudominio.com">
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="setting-smtp_pass">Senha de App / Senha SMTP</label>
+                <input type="password" id="setting-smtp_pass" placeholder="••••••••••••••••">
+              </div>
+            </div>
+
+            <!--  RESEND  -->
+            <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 14px;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="setting-resend_api_key">
+                  <span class="ui-icon icon-bolt sm" style="color: var(--accent-primary);"></span> 
+                  Alternativa: Chave de API do Resend (Opcional)
+                  <span class="info-bubble" data-tooltip="O Resend envia e-mails via API HTTP sem bloqueios de portas SMTP. Cadastre-se grátis em resend.com e use sua chave re_...">?</span>
+                </label>
+                <input type="password" id="setting-resend_api_key" placeholder="re_1234567890abcdef..." autocomplete="new-password">
+                <div class="hint" style="margin-top: 4px;">
+                  Se preferir não usar SMTP, crie uma conta gratuita em <a href="https://resend.com" target="_blank" style="color: var(--accent-primary); text-decoration: underline;">resend.com</a> e cole a chave aqui.
+                </div>
+              </div>
+            </div>
+
+            <button type="button" class="btn btn-secondary" onclick="testEmail()" style="width: 100%; margin-top: 6px;">
+              <span class="ui-icon icon-send sm"></span> Enviar Email de Teste
+            </button>
+          </div>
+
+          <!-- CARD LINKEDIN -->
+          <div class="settings-card">
+            <h3>
+              <span class="ui-icon icon-linkedin" style="color: var(--accent-primary);"></span> 
+              Publicação no LinkedIn
+            </h3>
+            <p class="subtitle">Conecte sua conta do LinkedIn ou use o modo simulação para testar sem publicar na rede real.</p>
+
+            <div class="form-group" style="background: var(--bg-surface-elevated); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+              <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: var(--text-main); margin-bottom: 0;">
+                <span style="display: flex; align-items: center; gap: 8px;">
+                  <span class="ui-icon icon-bolt sm" style="color: var(--accent-primary);"></span>
+                  Modo Simulação / Teste Seguro
+                  <span class="info-bubble" data-tooltip="Quando ativo, o envio ao LinkedIn é simulado no terminal e no painel sem postar de verdade no seu feed.">?</span>
+                </span>
+                <label class="switch">
+                  <input type="checkbox" id="setting-linkedin_simulation_mode" checked>
+                  <span class="slider"></span>
+                </label>
+              </label>
+              <div class="hint" style="margin-top: 6px;">
+                Quando ativado, o sistema simula a postagem com sucesso sem exigir credenciais da API do LinkedIn. Ideal para validar todo o fluxo primeiro!
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="setting-linkedin_access_token">
+                LinkedIn OAuth Access Token
+                <span class="info-bubble" data-tooltip="Token obtido no LinkedIn Developer Portal com os escopos openid, profile e w_member_social para postar no feed.">?</span>
+              </label>
+              <input type="password" id="setting-linkedin_access_token" placeholder="AQV..." autocomplete="new-password">
+              <div class="hint">Gerado no <strong>LinkedIn Developers &gt; Auth &gt; OAuth 2.0 tools</strong> com escopos <code>openid</code>, <code>profile</code> e <code>w_member_social</code>.</div>
+            </div>
+
+            <div class="form-group">
+              <label for="setting-linkedin_person_urn">
+                LinkedIn Person URN (Opcional)
+                <span class="info-bubble" data-tooltip="Identificador da sua conta no formato urn:li:person:XXXX ou organização urn:li:organization:XXXX.">?</span>
+              </label>
+              <input type="text" id="setting-linkedin_person_urn" placeholder="Detectado automaticamente com openid" autocomplete="off" spellcheck="false">
+              <div class="hint">Detectado automaticamente pelo GitPost. Preencha apenas se for publicar em Company Page (ex: <code>urn:li:organization:123456</code>).</div>
+            </div>
+          </div>
+
+          <!-- CARD IA E GEMINI -->
+          <div class="settings-card">
+            <h3>
+              <span class="ui-icon icon-sparkles" style="color: var(--accent-primary);"></span> 
+              Geração de Posts com IA (Gemini)
+            </h3>
+            <p class="subtitle">A IA cria textos profissionais e envolventes focados no valor técnico das suas atualizações.</p>
+
+            <div class="form-group">
+              <label for="setting-gemini_api_key">
+                Chave de API do Google Gemini (Opcional)
+                <span class="info-bubble" data-tooltip="Chave gratuita do Google AI Studio (aistudio.google.com). Se vazia, um modelo de texto padrão será usado.">?</span>
+              </label>
+              <input type="password" id="setting-gemini_api_key" placeholder="AIzaSy..." autocomplete="new-password">
+              <div class="hint">Se não preenchido, o sistema usará um template profissional padrão.</div>
+            </div>
+
+            <div class="form-group">
+              <label for="setting-ai_tone">
+                Tom de Voz da Publicação
+                <span class="info-bubble" data-tooltip="Define a persona e o estilo do texto gerado pela IA (mais técnico, direto ou narrativo).">?</span>
+              </label>
+              <select id="setting-ai_tone">
+                <option value="Profissional e Engajador">Profissional e Engajador (Recomendado)</option>
+                <option value="Técnico e Direto ao Ponto">Técnico e Direto ao Ponto</option>
+                <option value="Descontraído e Autêntico">Descontraído e Autêntico</option>
+                <option value="Storytelling de Aprendizado">Storytelling de Aprendizado e Desafios</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="setting-ai_custom_instructions">
+                Instruções Personalizadas para a IA
+                <span class="info-bubble" data-tooltip="Regras customizadas que o Gemini sempre seguirá (ex: idioma, incluir emojis, mencionar stack).">?</span>
+              </label>
+              <textarea id="setting-ai_custom_instructions" rows="2" placeholder="Ex: Destaque boas práticas de arquitetura e deixe claro que o código está aberto para colaboração..."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="setting-app_base_url">
+                URL Base da Aplicação
+                <span class="info-bubble" data-tooltip="Endereço onde o GitPost está rodando. Os botões do e-mail de aprovação apontam para este endereço.">?</span>
+              </label>
+              <input type="text" id="setting-app_base_url" value="http://localhost:8000">
+              <div class="hint">Usado nos links dos botões de aprovação enviados por email.</div>
+            </div>
+
+            <button type="button" class="btn btn-secondary" onclick="testAI()" style="width: 100%; margin-top: 6px;">
+              <span class="ui-icon icon-sparkles sm"></span> Testar Geração com IA
+            </button>
+          </div>
+
+        </div>
+      </form>
+    </section>
+
+  </main>
+
+  <!-- TOAST CONTAINER -->
+  <div id="toast-container"></div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
