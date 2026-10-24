@@ -505,23 +505,44 @@ async function simulateNewRepo() {
 }
 
 async function loadSettings() {
+  const localSaved = localStorage.getItem('gitpost-device-settings');
+  let deviceSettings = {};
+  if (localSaved) {
+    try {
+      deviceSettings = JSON.parse(localSaved);
+    } catch (_) {}
+  }
+
+  let serverSettings = {};
   try {
     const res = await fetch('/api/settings');
     const data = await res.json();
-    const s = data.settings || {};
+    serverSettings = data.settings || {};
+  } catch (e) {
+    console.error('Erro ao buscar configurações do servidor:', e);
+  }
 
-    for (const [key, val] of Object.entries(s)) {
-      const input = document.getElementById(`setting-${key}`);
-      if (input) {
-        if (input.type === 'checkbox') {
-          input.checked = val === '1';
-        } else {
-          input.value = val;
-        }
+  const merged = { ...serverSettings, ...deviceSettings };
+
+  for (const [key, val] of Object.entries(merged)) {
+    const input = document.getElementById(`setting-${key}`);
+    if (input && val !== undefined && val !== null) {
+      if (input.type === 'checkbox') {
+        input.checked = val === '1';
+      } else {
+        input.value = val;
       }
     }
-  } catch (e) {
-    console.error('Erro ao carregar configurações:', e);
+  }
+
+  if (Object.keys(deviceSettings).length > 0) {
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(deviceSettings)
+      });
+    } catch (_) {}
   }
 }
 
@@ -539,6 +560,10 @@ async function saveSettings(e) {
   });
 
   try {
+    localStorage.setItem('gitpost-device-settings', JSON.stringify(formData));
+  } catch (_) {}
+
+  try {
     const res = await fetch('/api/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -546,12 +571,12 @@ async function saveSettings(e) {
     });
     const data = await res.json();
     if (res.ok) {
-      showToast('Configurações salvas com sucesso!', 'success');
+      showToast('Configurações salvas no dispositivo e servidor!', 'success');
     } else {
       showToast(data.detail || 'Erro ao salvar configurações', 'error');
     }
   } catch (err) {
-    showToast('Erro ao conectar ao servidor', 'error');
+    showToast('Salvo no dispositivo! (Sem conexão com o servidor)', 'info');
   }
 }
 
