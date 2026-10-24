@@ -382,6 +382,7 @@ body {
   border: 1px solid var(--border-color);
   gap: 4px;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  max-width: 100%;
 }
 
 .nav-segment-btn {
@@ -397,6 +398,8 @@ body {
   border-radius: 8px;
   cursor: pointer;
   transition: var(--transition);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .nav-segment-btn:hover {
@@ -1371,17 +1374,23 @@ input:focus, select:focus, textarea:focus,
   margin-bottom: 8px;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1100px) {
   .header-inner {
     flex-wrap: wrap;
-    justify-content: center;
-    gap: 14px;
-    padding: 12px 16px;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 18px;
   }
   .nav-segmented {
     order: 3;
     width: 100%;
+    justify-content: stretch;
+  }
+  .nav-segment-btn {
+    flex: 1;
     justify-content: center;
+    padding: 8px 10px;
+    font-size: 12.5px;
   }
   .settings-grid {
     columns: 1 !important;
@@ -1390,7 +1399,7 @@ input:focus, select:focus, textarea:focus,
 
 @media (max-width: 768px) {
   .container {
-    padding: 16px 12px 40px;
+    padding: 14px 10px 40px;
   }
   .app-header {
     position: relative;
@@ -1398,8 +1407,8 @@ input:focus, select:focus, textarea:focus,
   .header-inner {
     flex-direction: column;
     align-items: stretch;
-    gap: 12px;
-    padding: 10px 12px;
+    gap: 10px;
+    padding: 10px;
   }
   .logo-wrapper {
     justify-content: space-between;
@@ -1408,28 +1417,34 @@ input:focus, select:focus, textarea:focus,
   .header-actions {
     justify-content: space-between;
     width: 100%;
+    gap: 8px;
   }
   .nav-segmented {
     width: 100%;
-    overflow-x: auto;
+    display: flex;
     padding: 3px;
+    gap: 3px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .nav-segment-btn {
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 7px 6px;
+    font-size: 11.5px;
+    gap: 5px;
     justify-content: center;
-    padding: 8px 10px;
-    font-size: 12px;
-    white-space: nowrap;
   }
   .pipeline-flow-strip {
     justify-content: flex-start;
-    padding: 8px 12px;
-    gap: 8px;
+    padding: 8px 10px;
+    gap: 6px;
     font-size: 11px;
     -webkit-overflow-scrolling: touch;
   }
   .flow-step {
-    padding: 3px 10px;
+    padding: 3px 8px;
+    font-size: 11px;
   }
   .section-header {
     flex-direction: column;
@@ -1438,12 +1453,13 @@ input:focus, select:focus, textarea:focus,
     margin-bottom: 16px;
   }
   .section-title h2 {
-    font-size: 19px;
+    font-size: 18px;
   }
   .controls-group {
     flex-direction: column;
     align-items: stretch;
     width: 100%;
+    gap: 8px;
   }
   .controls-group .btn,
   .controls-group .search-box {
@@ -1459,68 +1475,127 @@ input:focus, select:focus, textarea:focus,
   }
   .filter-pill {
     flex-shrink: 0;
-    padding: 6px 12px;
+    padding: 6px 11px;
     font-size: 12px;
   }
   .repos-grid {
     grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 12px;
   }
   .repo-card {
-    padding: 16px;
+    padding: 14px;
+  }
+  .posts-list {
+    gap: 14px;
   }
   .post-card {
-    padding: 16px;
+    padding: 14px;
+    border-radius: var(--radius-sm);
   }
   .post-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+    width: 100%;
+  }
+  .post-header > div:last-child {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+  .post-commit-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    word-break: break-word;
+  }
+  .post-commit-info > span:nth-child(2),
+  .post-commit-info > span:nth-child(4) {
+    display: none;
+  }
+  .post-textarea {
+    font-size: 13px;
+    padding: 10px;
+    min-height: 120px;
   }
   .post-actions {
     flex-direction: column;
     align-items: stretch;
     width: 100%;
+    gap: 8px;
   }
   .post-actions .btn {
     width: 100%;
+    justify-content: center;
+    padding: 9px 12px;
+  }
+  .post-actions > div {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 8px;
+  }
+  .settings-grid {
+    columns: 1 !important;
+    column-gap: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
   }
   .settings-card {
-    padding: 14px;
+    margin-bottom: 0;
+    padding: 14px 12px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .settings-card h3 {
+    font-size: 14.5px;
   }
   .form-row {
     flex-direction: column;
     gap: 8px;
   }
+  #btn-save-settings {
+    width: 100%;
+    padding: 10px;
+    font-size: 13.5px;
+  }
   #toast-container {
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
   }
   .toast {
     width: 100%;
     box-sizing: border-box;
+    font-size: 12.5px;
+    padding: 10px 14px;
   }
 }
 
 @media (max-width: 480px) {
   .logo-title-row h1 {
-    font-size: 17px;
+    font-size: 16px;
   }
   .pipeline-badge {
     font-size: 9px;
-    padding: 1px 6px;
+    padding: 1px 5px;
   }
   .status-pill {
-    padding: 4px 8px;
-    font-size: 10.5px;
+    padding: 4px 6px;
+    font-size: 10px;
   }
   .theme-toggle-btn {
-    padding: 6px 9px;
-    font-size: 11.5px;
+    padding: 5px 8px;
+    font-size: 11px;
   }
   .btn {
-    padding: 8px 12px;
-    font-size: 12.5px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .nav-segment-btn span:not(.ui-icon):not(.tab-counter) {
+    font-size: 11px;
   }
 }
