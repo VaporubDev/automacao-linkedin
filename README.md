@@ -31,7 +31,12 @@ O envio só ocorre após aprovação explícita do desenvolvedor, que recebe um 
     - **Editar no Painel** (abre o rascunho no painel web)
     - **Descartar Publicação** (vermelho de exclusão)
 
-- **Publicação Oficial no LinkedIn:**
+- **Publicação Oficial no LinkedIn com Mídia Nativa:**
+  - Suporte completo a **upload nativo de imagens e vídeos** via REST Images & Videos API (`urn:li:image` / `urn:li:video`).
+  - **3 formas integradas de obter mídia:**
+    1. Reconhecimento automático de imagens e banners presentes no `README.md` do repositório.
+    2. Geração automática de screenshot da homepage/site ao vivo do projeto (ex: Vercel, Netlify, Pages).
+    3. Upload manual de arquivo direto do computador ou inclusão de link pelo painel web.
   - Comunicação com a API oficial do LinkedIn (*REST Posts API* e *UGC Posts*).
   - Suporte a OpenID Connect e resolução de autor pessoal (`urn:li:person`).
   - **Modo Simulação integrado:** ativado por padrão para testar o fluxo de ponta a ponta sem postar no perfil real.
@@ -39,7 +44,7 @@ O envio só ocorre após aprovação explícita do desenvolvedor, que recebe um 
 - **Interface Dev Console:**
   - Suporte completo a **Tema Claro** e **Tema Escuro Profundo (Deep Dark)** com persistência local.
   - Paleta unificada no azul oficial do LinkedIn (`#0A66C2`), sem tons verdes.
-  - Painel com abas segmentadas, busca rápida, filtros por status e tooltips informativos.
+  - Painel com abas segmentadas, busca rápida, filtros por status, prévia de mídia e tooltips informativos.
 
 ---
 

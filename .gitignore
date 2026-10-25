@@ -18,6 +18,7 @@ __pycache__/
 .vscode/
 .idea/
 *.sublime-project
-*.sublime-workspace
 .DS_Store
 Thumbs.db
+
+app/static/uploads/

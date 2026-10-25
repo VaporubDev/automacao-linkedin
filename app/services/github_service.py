@@ -66,22 +66,24 @@ async def fetch_user_repositories() -> List[Dict[str, Any]]:
         language = r.get("language") or "Outro"
 
 
+        homepage = (r.get("homepage") or "").strip()
+
         existing = conn.execute("SELECT id, is_monitored, last_sha FROM monitored_repos WHERE repo_name = ?", (full_name,)).fetchone()
         
         if existing:
             conn.execute("""
                 UPDATE monitored_repos 
-                SET description = ?, is_private = ?, default_branch = ?, html_url = ?, stars = ?, language = ?, updated_at = ?
+                SET description = ?, is_private = ?, default_branch = ?, html_url = ?, homepage_url = ?, stars = ?, language = ?, updated_at = ?
                 WHERE id = ?
-            """, (description, is_private, default_branch, html_url, stars, language, now_str, existing["id"]))
+            """, (description, is_private, default_branch, html_url, homepage, stars, language, now_str, existing["id"]))
             is_mon = existing["is_monitored"]
             repo_id = existing["id"]
         else:
             cur = conn.execute("""
                 INSERT INTO monitored_repos 
-                (repo_name, description, is_monitored, is_private, default_branch, html_url, stars, language, updated_at)
-                VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?)
-            """, (full_name, description, is_private, default_branch, html_url, stars, language, now_str))
+                (repo_name, description, is_monitored, is_private, default_branch, html_url, homepage_url, stars, language, updated_at)
+                VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
+            """, (full_name, description, is_private, default_branch, html_url, homepage, stars, language, now_str))
             is_mon = 0
             repo_id = cur.lastrowid
 
@@ -93,6 +95,7 @@ async def fetch_user_repositories() -> List[Dict[str, Any]]:
             "is_private": bool(is_private),
             "default_branch": default_branch,
             "html_url": html_url,
+            "homepage_url": homepage,
             "stars": stars,
             "language": language
         })
@@ -108,6 +111,7 @@ async def queue_new_repo_announcement(repo_dict: Dict[str, Any]) -> Tuple[bool, 
     """
     from app.services.ai_service import generate_new_repo_post
     from app.services.email_service import send_approval_email
+    from app.services.media_helper import resolve_best_repo_media
 
     repo_name = repo_dict.get("repo_name")
     html_url = repo_dict.get("html_url") or f"https://github.com/{repo_name}"
@@ -134,14 +138,18 @@ async def queue_new_repo_announcement(repo_dict: Dict[str, Any]) -> Tuple[bool, 
         language=language
     )
 
+    media_url, media_type, media_title = await resolve_best_repo_media(repo_dict)
+    if media_url:
+        print(f"[GitPost Media] Mídia identificada para {repo_name}: {media_type.upper()} -> {media_url}")
+
     approval_token = str(uuid.uuid4())
     now_str = datetime.datetime.now().isoformat()
 
     cur = conn.execute("""
         INSERT INTO posts_queue 
-        (repo_name, commit_sha, commit_message, commit_author, commit_url, post_content, status, approval_token, created_at)
-        VALUES (?, 'new-repo', ?, 'GitHub', ?, ?, 'pending', ?, ?)
-    """, (repo_name, f"🎉 Lançamento do Projeto: {clean_name}", html_url, post_text, approval_token, now_str))
+        (repo_name, commit_sha, commit_message, commit_author, commit_url, post_content, media_url, media_type, media_title, status, approval_token, created_at)
+        VALUES (?, 'new-repo', ?, 'GitHub', ?, ?, ?, ?, ?, 'pending', ?, ?)
+    """, (repo_name, f"🎉 Lançamento do Projeto: {clean_name}", html_url, post_text, media_url, media_type, media_title, approval_token, now_str))
     
     post_id = cur.lastrowid
     conn.commit()
@@ -155,6 +163,9 @@ async def queue_new_repo_announcement(repo_dict: Dict[str, Any]) -> Tuple[bool, 
         "commit_author": "GitHub",
         "commit_url": html_url,
         "post_content": post_text,
+        "media_url": media_url,
+        "media_type": media_type,
+        "media_title": media_title,
         "approval_token": approval_token
     }
 
@@ -237,13 +248,16 @@ async def check_repo_updates(repo: Any = None, repo_dict: Dict[str, Any] = None)
             commit_author=author_name
         )
 
+        from app.services.media_helper import resolve_best_repo_media
+        media_url, media_type, media_title = await resolve_best_repo_media(repo_dict)
+
         approval_token = str(uuid.uuid4())
 
         cur = conn.execute("""
             INSERT INTO posts_queue 
-            (repo_name, commit_sha, commit_message, commit_author, commit_url, post_content, status, approval_token, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)
-        """, (repo_name, sha, message, author_name, commit_url, post_text, approval_token, now_str))
+            (repo_name, commit_sha, commit_message, commit_author, commit_url, post_content, media_url, media_type, media_title, status, approval_token, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+        """, (repo_name, sha, message, author_name, commit_url, post_text, media_url, media_type, media_title, approval_token, now_str))
         
         post_id = cur.lastrowid
 
@@ -255,6 +269,9 @@ async def check_repo_updates(repo: Any = None, repo_dict: Dict[str, Any] = None)
             "commit_author": author_name,
             "commit_url": commit_url,
             "post_content": post_text,
+            "media_url": media_url,
+            "media_type": media_type,
+            "media_title": media_title,
             "approval_token": approval_token
         }
         new_pending_posts.append(post_data)

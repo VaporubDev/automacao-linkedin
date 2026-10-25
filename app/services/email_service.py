@@ -36,6 +36,32 @@ async def send_approval_email(post_data: Dict[str, Any]) -> bool:
     reject_url = f"{base_url}/actions/reject/{post_id}?token={token}"
     edit_url = f"{base_url}/#post-{post_id}"
 
+    media_url = post_data.get("media_url") or ""
+    media_type = post_data.get("media_type") or "image"
+    media_title = post_data.get("media_title") or "Demonstração do projeto"
+
+    if media_url and media_url.startswith("/"):
+        display_media_url = f"{base_url}{media_url}"
+    else:
+        display_media_url = media_url
+
+    media_html = ""
+    if display_media_url:
+        if media_type == "video":
+            media_html = f"""
+            <div style="margin: 16px 0; padding: 12px; background: #0a111a; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; text-align: center;">
+                <div style="font-size: 12px; color: #38bdf8; font-weight: 700; margin-bottom: 6px;">🎬 VÍDEO DO PROJETO ANEXADO</div>
+                <a href="{display_media_url}" target="_blank" style="color: #38bdf8; font-size: 13px; text-decoration: underline;">Assistir vídeo anexado ({media_title})</a>
+            </div>
+            """
+        else:
+            media_html = f"""
+            <div style="margin: 16px 0; background: #0a111a; border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; overflow: hidden; text-align: center;">
+                <div style="font-size: 11.5px; color: #38bdf8; font-weight: 700; padding: 6px 12px; background: rgba(56, 189, 248, 0.1); border-bottom: 1px solid rgba(56, 189, 248, 0.15);">🖼️ IMAGEM / PREVIEW DO SITE ANEXADA</div>
+                <img src="{display_media_url}" alt="{media_title}" style="max-width: 100%; height: auto; max-height: 280px; display: block; margin: 0 auto; object-fit: contain;">
+            </div>
+            """
+
     subject = f"🔔 [GitPost] Nova atualização em '{repo_name}' - Postar no LinkedIn?"
 
     html_body = f"""<!DOCTYPE html>
@@ -79,6 +105,8 @@ async def send_approval_email(post_data: Dict[str, Any]) -> bool:
         <div class="info-row"><strong>Atualização:</strong> {commit_msg}</div>
         <div class="info-row"><strong>Commit SHA:</strong> <a href="{commit_url}" style="color: #38bdf8; text-decoration: none;">{commit_sha}</a></div>
       </div>
+
+      {media_html}
 
       <div class="preview-label">Texto Gerado para o LinkedIn:</div>
       <div class="post-box">{post_content}</div>

@@ -44,6 +44,7 @@ def init_db():
         last_sha TEXT,
         last_checked_at TEXT,
         html_url TEXT,
+        homepage_url TEXT,
         stars INTEGER DEFAULT 0,
         language TEXT,
         updated_at TEXT
@@ -59,6 +60,9 @@ def init_db():
         commit_author TEXT,
         commit_url TEXT,
         post_content TEXT,
+        media_url TEXT,
+        media_type TEXT,
+        media_title TEXT,
         status TEXT DEFAULT 'pending',
         approval_token TEXT UNIQUE,
         created_at TEXT,
@@ -67,6 +71,18 @@ def init_db():
         error_message TEXT
     )
     """)
+
+    columns_to_add = [
+        ("monitored_repos", "homepage_url", "TEXT"),
+        ("posts_queue", "media_url", "TEXT"),
+        ("posts_queue", "media_type", "TEXT"),
+        ("posts_queue", "media_title", "TEXT"),
+    ]
+    for table, col, col_type in columns_to_add:
+        try:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type};")
+        except Exception:
+            pass
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS processed_commits (

@@ -344,6 +344,58 @@ function renderPosts(posts) {
         </label>
         <textarea class="post-textarea" id="text-post-${p.id}" ${(!isPending && p.status !== 'failed') ? 'readonly' : ''}>${escapeHtml(p.post_content)}</textarea>
 
+        <!-- BLOCO DE MÍDIA DO PROJETO (IMAGEM / VÍDEO / SCREENSHOT) -->
+        <div class="post-media-container" id="media-container-${p.id}">
+          <div class="post-media-header">
+            <span style="display: inline-flex; align-items: center; gap: 6px;">
+              <span class="ui-icon icon-sparkles sm" style="color: var(--accent-primary);"></span>
+              Mídia do Projeto (Anexo Nativo no LinkedIn):
+            </span>
+            ${p.media_url ? `
+              <span class="post-media-badge" style="position: static;">
+                ${p.media_type === 'video' ? '🎬 Vídeo Detectado' : '🖼️ Imagem / Screenshot'}
+              </span>
+            ` : `
+              <span style="font-size: 11px; color: var(--text-sub);">Nenhuma mídia anexada</span>
+            `}
+          </div>
+
+          ${p.media_url ? `
+            <div class="post-media-preview-box">
+              <span class="post-media-badge">
+                ${p.media_type === 'video' ? '🎬 Vídeo' : '🖼️ Imagem'}
+              </span>
+              ${p.media_type === 'video' ? `
+                <video src="${escapeHtml(p.media_url)}" controls style="width: 100%; max-height: 240px;"></video>
+              ` : `
+                <img src="${escapeHtml(p.media_url)}" alt="${escapeHtml(p.media_title || 'Preview do projeto')}" loading="lazy">
+              `}
+            </div>
+          ` : ''}
+
+          ${(isPending || p.status === 'failed') ? `
+            <div class="post-media-controls">
+              <input type="text" class="post-media-input-url" id="media-url-${p.id}" value="${escapeHtml(p.media_url || '')}" placeholder="Cole URL de imagem/vídeo ou deixe em branco">
+              <select id="media-type-${p.id}" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 12px; color: var(--text-main);">
+                <option value="image" ${p.media_type !== 'video' ? 'selected' : ''}>Imagem</option>
+                <option value="video" ${p.media_type === 'video' ? 'selected' : ''}>Vídeo</option>
+              </select>
+              <button class="btn btn-secondary" style="font-size: 12px; padding: 7px 12px;" onclick="promptWebsiteScreenshot(${p.id})" title="Capturar screenshot ao vivo de um site/demo">
+                <span class="ui-icon icon-globe sm"></span> Print do Site
+              </button>
+              <label class="btn btn-secondary" style="font-size: 12px; padding: 7px 12px; cursor: pointer;" title="Fazer upload de imagem ou vídeo do seu computador">
+                <span class="ui-icon icon-save sm"></span> Upload
+                <input type="file" accept="image/*,video/*" style="display: none;" onchange="uploadPostMediaFile(${p.id}, this)">
+              </label>
+              ${p.media_url ? `
+                <button class="btn btn-secondary" style="font-size: 12px; padding: 7px 10px; color: #ff5260;" onclick="removePostMedia(${p.id})" title="Remover mídia deste post">
+                  <span class="ui-icon icon-trash sm"></span>
+                </button>
+              ` : ''}
+            </div>
+          ` : ''}
+        </div>
+
         <div class="post-actions">
           ${isPending ? `
             <button class="btn btn-secondary" onclick="savePostText(${p.id})">
@@ -446,18 +498,87 @@ async function rejectPostAction(postId) {
 
 async function savePostText(postId, showSuccessToast = true) {
   const content = document.getElementById(`text-post-${postId}`).value;
+  const urlInput = document.getElementById(`media-url-${postId}`);
+  const typeSelect = document.getElementById(`media-type-${postId}`);
+  
+  const mediaUrl = urlInput ? urlInput.value.trim() : null;
+  const mediaType = typeSelect ? typeSelect.value : 'image';
+
   try {
     const res = await fetch(`/api/posts/${postId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ post_content: content })
+      body: JSON.stringify({
+        post_content: content,
+        media_url: mediaUrl,
+        media_type: mediaType
+      })
     });
-    if (showSuccessToast && res.ok) {
-      showToast('Conteúdo do post salvo com sucesso!', 'success');
+    if (res.ok) {
+      if (showSuccessToast) showToast('Conteúdo e mídia salvos com sucesso!', 'success');
+      loadPosts();
     }
   } catch (e) {
-    if (showSuccessToast) showToast('Erro ao salvar texto', 'error');
+    if (showSuccessToast) showToast('Erro ao salvar post', 'error');
   }
+}
+
+async function promptWebsiteScreenshot(postId) {
+  const defaultUrl = 'https://meu-projeto.vercel.app';
+  const url = prompt('Digite a URL do site/demonstração do projeto para capturar o screenshot:', defaultUrl);
+  if (!url || !url.startsWith('http')) {
+    if (url) showToast('URL inválida. Comece com http:// ou https://', 'error');
+    return;
+  }
+
+  showToast('Gerando captura de tela em alta resolução do site...', 'info');
+  try {
+    const res = await fetch(`/api/posts/${postId}/fetch-screenshot?website_url=${encodeURIComponent(url)}`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showToast(data.message || 'Screenshot capturado com sucesso!', 'success');
+      loadPosts();
+    } else {
+      showToast(data.detail || 'Erro ao capturar screenshot', 'error');
+    }
+  } catch (e) {
+    showToast('Falha na conexão ao capturar site', 'error');
+  }
+}
+
+async function uploadPostMediaFile(postId, inputElem) {
+  if (!inputElem.files || !inputElem.files[0]) return;
+  const file = inputElem.files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+
+  showToast(`Enviando ${file.name}...`, 'info');
+  try {
+    const res = await fetch(`/api/posts/${postId}/upload-media`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showToast(data.message || 'Mídia enviada com sucesso!', 'success');
+      loadPosts();
+    } else {
+      showToast(data.detail || 'Erro no envio da mídia', 'error');
+    }
+  } catch (e) {
+    showToast('Falha ao enviar arquivo de mídia', 'error');
+  }
+}
+
+async function removePostMedia(postId) {
+  if (!confirm('Deseja remover a mídia deste post?')) return;
+  const urlInput = document.getElementById(`media-url-${postId}`);
+  if (urlInput) urlInput.value = '';
+  await savePostText(postId, false);
+  showToast('Mídia desvinculada do post', 'info');
+  loadPosts();
 }
 
 async function triggerManualCheck() {
