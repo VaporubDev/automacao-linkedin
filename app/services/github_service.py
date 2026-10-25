@@ -119,16 +119,16 @@ async def queue_new_repo_announcement(repo_dict: Dict[str, Any]) -> Tuple[bool, 
     language = repo_dict.get("language") or ""
     clean_name = repo_name.split("/")[-1] if "/" in repo_name else repo_name
 
-    # Verifica se já existe um post desse repo na fila para não duplicar
+    # Verifica se já existe um post desse repo na fila
     conn = get_connection()
     existing = conn.execute(
-        "SELECT id, status FROM posts_queue WHERE repo_name = ? AND commit_sha = 'new-repo'",
+        "SELECT id, status FROM posts_queue WHERE repo_name = ? AND commit_sha = 'new-repo' AND status = 'pending'",
         (repo_name,)
     ).fetchone()
+    conn.close()
     
     if existing:
-        conn.close()
-        return False, f"Já existe uma publicação de novidade na fila para {repo_name} (Status: {existing['status']}).", existing["id"]
+        return False, f"Já existe uma publicação de novidade pendente na fila para {repo_name} (Post #{existing['id']}).", existing["id"]
 
     print(f"\n[GitPost] Gerando publicação com IA sobre o novo repositório: {repo_name}...")
     post_text = await generate_new_repo_post(
@@ -145,6 +145,7 @@ async def queue_new_repo_announcement(repo_dict: Dict[str, Any]) -> Tuple[bool, 
     approval_token = str(uuid.uuid4())
     now_str = datetime.datetime.now().isoformat()
 
+    conn = get_connection()
     cur = conn.execute("""
         INSERT INTO posts_queue 
         (repo_name, commit_sha, commit_message, commit_author, commit_url, post_content, media_url, media_type, media_title, status, approval_token, created_at)
@@ -236,9 +237,13 @@ async def check_repo_updates(repo: Any = None, repo_dict: Dict[str, Any] = None)
 
         conn.execute("INSERT INTO processed_commits (sha, repo_name, processed_at) VALUES (?, ?, ?)",
                      (sha, repo_name, now_str))
+        conn.commit()
 
         if is_initial_check:
             continue
+
+        # Libera o lock do banco antes de chamar a IA e downloads de mídia
+        conn.close()
 
         post_text = await generate_linkedin_post(
             repo_name=repo_name,
@@ -253,6 +258,7 @@ async def check_repo_updates(repo: Any = None, repo_dict: Dict[str, Any] = None)
 
         approval_token = str(uuid.uuid4())
 
+        conn = get_connection()
         cur = conn.execute("""
             INSERT INTO posts_queue 
             (repo_name, commit_sha, commit_message, commit_author, commit_url, post_content, media_url, media_type, media_title, status, approval_token, created_at)
@@ -260,6 +266,7 @@ async def check_repo_updates(repo: Any = None, repo_dict: Dict[str, Any] = None)
         """, (repo_name, sha, message, author_name, commit_url, post_text, media_url, media_type, media_title, approval_token, now_str))
         
         post_id = cur.lastrowid
+        conn.commit()
 
         post_data = {
             "id": post_id,
