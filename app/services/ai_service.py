@@ -101,7 +101,7 @@ Diretrizes de estilo:
         ],
         "generationConfig": {
             "temperature": 0.7,
-            "maxOutputTokens": 800
+            "maxOutputTokens": 2048
         }
     }
 
@@ -244,7 +244,7 @@ Diretrizes de estilo:
         ],
         "generationConfig": {
             "temperature": 0.7,
-            "maxOutputTokens": 800
+            "maxOutputTokens": 2048
         }
     }
 
