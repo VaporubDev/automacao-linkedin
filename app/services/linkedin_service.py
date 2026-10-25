@@ -5,10 +5,9 @@ import datetime
 from typing import Dict, Any, Tuple, Optional
 from app.database import get_setting, get_connection
 
-LINKEDIN_REST_POSTS_URL = "https://api.linkedin.com/rest/posts"
-LINKEDIN_REST_IMAGES_URL = "https://api.linkedin.com/rest/images"
-LINKEDIN_REST_VIDEOS_URL = "https://api.linkedin.com/rest/videos"
 LINKEDIN_UGC_POSTS_URL = "https://api.linkedin.com/v2/ugcPosts"
+LINKEDIN_ASSETS_URL = "https://api.linkedin.com/v2/assets?action=registerUpload"
+LINKEDIN_REST_POSTS_URL = "https://api.linkedin.com/rest/posts"
 LINKEDIN_API_VERSION = "202511"
 
 async def download_media_bytes(media_url: str) -> Tuple[Optional[bytes], str]:
@@ -19,6 +18,7 @@ async def download_media_bytes(media_url: str) -> Tuple[Optional[bytes], str]:
     if not media_url:
         return None, ""
 
+    # Se for arquivo local salvo no static/uploads
     if "/static/uploads/" in media_url or media_url.startswith("static/uploads/"):
         filename = os.path.basename(media_url)
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -37,8 +37,9 @@ async def download_media_bytes(media_url: str) -> Tuple[Optional[bytes], str]:
                 ".mov": "video/quicktime",
                 ".webm": "video/webm"
             }
-            return content, mime_map.get(ext, "application/octet-stream")
+            return content, mime_map.get(ext, "image/png")
 
+    # Se for URL externa na internet
     if media_url.startswith("http://") or media_url.startswith("https://"):
         try:
             async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
@@ -61,121 +62,70 @@ async def download_media_bytes(media_url: str) -> Tuple[Optional[bytes], str]:
 
     return None, ""
 
-async def upload_image_to_linkedin(client: httpx.AsyncClient, owner_urn: str, access_token: str, image_bytes: bytes, content_type: str) -> Optional[str]:
+async def upload_asset_to_linkedin(
+    client: httpx.AsyncClient,
+    owner_urn: str,
+    access_token: str,
+    media_bytes: bytes,
+    content_type: str,
+    media_type: str = "image"
+) -> Optional[str]:
     """
-    Realiza o fluxo oficial de upload de imagem para a REST Images API do LinkedIn.
-    Retorna o URN da imagem (ex: urn:li:image:D4E10AQ...) ou None se falhar.
+    Realiza o fluxo oficial com a Assets API (registerUpload + PUT binary).
+    Garante que a imagem ou vídeo renderize de forma visível e nativa no feed do LinkedIn.
+    Retorna o asset URN (ex: urn:li:digitalmediaAsset:...)
     """
     try:
-        init_headers = {
+        is_video = (media_type == "video" or content_type.startswith("video/"))
+        recipe = "urn:li:digitalmediaRecipe:feedshare-video" if is_video else "urn:li:digitalmediaRecipe:feedshare-image"
+
+        headers = {
             "Authorization": f"Bearer {access_token}",
-            "LinkedIn-Version": LINKEDIN_API_VERSION,
             "X-Restli-Protocol-Version": "2.0.0",
             "Content-Type": "application/json"
         }
-        init_payload = {
-            "initializeUploadRequest": {
-                "owner": owner_urn
-            }
-        }
-        init_resp = await client.post(
-            f"{LINKEDIN_REST_IMAGES_URL}?action=initializeUpload",
-            json=init_payload,
-            headers=init_headers
-        )
-        if init_resp.status_code not in [200, 201]:
-            print(f"[LinkedIn Image Upload Init Error] Status {init_resp.status_code}: {init_resp.text}")
-            return None
 
-        data = init_resp.json().get("value", {})
-        upload_url = data.get("uploadUrl")
-        image_urn = data.get("image")
-
-        if not upload_url or not image_urn:
-            return None
-
-        put_headers = {
-            "Content-Type": content_type or "image/png"
-        }
-        put_resp = await client.put(upload_url, content=image_bytes, headers=put_headers, timeout=60.0)
-        if put_resp.status_code in [200, 201]:
-            print(f"🖼️ [LinkedIn Media] Imagem carregada com sucesso! URN: {image_urn}")
-            return image_urn
-        else:
-            print(f"[LinkedIn Image Upload Binary Error] Status {put_resp.status_code}: {put_resp.text[:200]}")
-            return None
-
-    except Exception as e:
-        print(f"[LinkedIn Media Exception] Erro ao fazer upload de imagem: {e}")
-        return None
-
-async def upload_video_to_linkedin(client: httpx.AsyncClient, owner_urn: str, access_token: str, video_bytes: bytes, content_type: str) -> Optional[str]:
-    """
-    Realiza o fluxo oficial de upload de vídeo para a REST Videos API do LinkedIn.
-    Retorna o URN do vídeo (ex: urn:li:video:...) ou None se falhar.
-    """
-    try:
-        init_headers = {
-            "Authorization": f"Bearer {access_token}",
-            "LinkedIn-Version": LINKEDIN_API_VERSION,
-            "X-Restli-Protocol-Version": "2.0.0",
-            "Content-Type": "application/json"
-        }
-        init_payload = {
-            "initializeUploadRequest": {
+        reg_payload = {
+            "registerUploadRequest": {
+                "recipes": [recipe],
                 "owner": owner_urn,
-                "fileSizeBytes": len(video_bytes),
-                "uploadCaptions": False,
-                "uploadThumbnail": False
+                "serviceRelationships": [{
+                    "relationshipType": "OWNER",
+                    "identifier": "urn:li:userGeneratedContent"
+                }],
+                "supportedUploadMechanism": ["SYNCHRONOUS_UPLOAD"]
             }
         }
-        init_resp = await client.post(
-            f"{LINKEDIN_REST_VIDEOS_URL}?action=initializeUpload",
-            json=init_payload,
-            headers=init_headers
-        )
-        if init_resp.status_code not in [200, 201]:
-            print(f"[LinkedIn Video Upload Init Error] Status {init_resp.status_code}: {init_resp.text}")
+
+        reg_resp = await client.post(LINKEDIN_ASSETS_URL, json=reg_payload, headers=headers)
+        if reg_resp.status_code not in [200, 201]:
+            print(f"[LinkedIn Asset Reg Error] Status {reg_resp.status_code}: {reg_resp.text}")
             return None
 
-        val = init_resp.json().get("value", {})
-        video_urn = val.get("video")
-        upload_instructions = val.get("uploadInstructions", [])
+        val = reg_resp.json().get("value", {})
+        asset_urn = val.get("asset")
+        mech = val.get("uploadMechanism", {}).get("com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest", {})
+        upload_url = mech.get("uploadUrl")
 
-        if not video_urn or not upload_instructions:
+        if not asset_urn or not upload_url:
+            print(f"[LinkedIn Asset Error] Não retornou asset ou uploadUrl: {val}")
             return None
 
-        for instruction in upload_instructions:
-            part_url = instruction.get("uploadUrl")
-            first_byte = instruction.get("firstByte", 0)
-            last_byte = instruction.get("lastByte", len(video_bytes) - 1)
-            chunk = video_bytes[first_byte:last_byte + 1]
-
-            put_headers = {"Content-Type": "application/octet-stream"}
-            put_resp = await client.put(part_url, content=chunk, headers=put_headers, timeout=120.0)
-            if put_resp.status_code not in [200, 201]:
-                print(f"[LinkedIn Video Chunk Error] Status {put_resp.status_code}")
-                return None
-
-        finalize_payload = {
-            "finalizeUploadRequest": {
-                "video": video_urn,
-                "uploadedPartIds": [instr.get("partId") for instr in upload_instructions if "partId" in instr]
-            }
+        # Upload dos bytes binários na URL retornada
+        put_headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": content_type or ("video/mp4" if is_video else "image/png")
         }
-        fin_resp = await client.post(
-            f"{LINKEDIN_REST_VIDEOS_URL}?action=finalizeUpload",
-            json=finalize_payload,
-            headers=init_headers
-        )
-        if fin_resp.status_code in [200, 201]:
-            print(f"🎬 [LinkedIn Media] Vídeo carregado com sucesso! URN: {video_urn}")
-            return video_urn
-
-        return video_urn
+        put_resp = await client.put(upload_url, content=media_bytes, headers=put_headers, timeout=90.0)
+        if put_resp.status_code in [200, 201]:
+            print(f"🖼️ [LinkedIn Media] Anexo ({media_type.upper()}) enviado com sucesso! Asset: {asset_urn}")
+            return asset_urn
+        else:
+            print(f"[LinkedIn Binary Upload Error] Status {put_resp.status_code}: {put_resp.text[:200]}")
+            return None
 
     except Exception as e:
-        print(f"[LinkedIn Media Exception] Erro ao fazer upload de vídeo: {e}")
+        print(f"[LinkedIn Media Exception] Erro ao registrar asset: {e}")
         return None
 
 async def publish_to_linkedin(
@@ -186,7 +136,7 @@ async def publish_to_linkedin(
 ) -> Tuple[bool, str, str]:
     """
     Publica um texto no perfil ou organização do LinkedIn via API oficial,
-    com suporte a anexo nativo de imagens ou vídeos do projeto.
+    com suporte comprovado a anexo nativo visível de imagens ou vídeos do projeto.
     Se estiver em 'Modo Simulação' ou sem chaves, simula a postagem com sucesso.
 
     Retorna: (sucesso: bool, linkedin_post_id: str, error_message: str)
@@ -196,7 +146,6 @@ async def publish_to_linkedin(
     person_urn = get_setting("linkedin_person_urn", "").strip()
 
     if simulation_mode or not access_token:
-        # Modo simulação ativado: simula envio com imagem/vídeo
         mock_id = f"mock-share-{uuid.uuid4().hex[:10]}"
         print(f"\n[LinkedIn - SIMULAÇÃO] Post publicado com sucesso em Modo Teste!")
         if media_url:
@@ -210,7 +159,7 @@ async def publish_to_linkedin(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=35.0) as client:
+        async with httpx.AsyncClient(timeout=45.0) as client:
             real_author = None
             userinfo_permitted = False
 
@@ -265,33 +214,97 @@ async def publish_to_linkedin(
 
             print(f"[LinkedIn Debug] Candidatos a autor: {unique_candidates}")
 
-            last_err = ""
-            last_status = 400
-
-            # 4. Se houver mídia configurada, baixa os bytes
+            # Baixa os bytes da mídia se houver URL configurada
             media_bytes, content_type = (None, "")
             if media_url:
                 media_bytes, content_type = await download_media_bytes(media_url)
 
+            last_err = ""
+            last_status = 400
+
+            # 1. FLUXO PRIORITÁRIO: UGC Posts API com Asset Nativo
+            # Garante que imagens e vídeos sejam renderizados de forma 100% nativa no feed do LinkedIn
+            for author in unique_candidates:
+                ugc_author = author
+                if ugc_author.startswith("urn:li:member:"):
+                    ugc_author = ugc_author.replace("urn:li:member:", "urn:li:person:")
+
+                print(f"[LinkedIn Attempt UGC] Tentando autor: {ugc_author}")
+                ugc_headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "X-Restli-Protocol-Version": "2.0.0",
+                    "Content-Type": "application/json"
+                }
+
+                # Upload de mídia via Assets API
+                asset_urn = None
+                if media_bytes:
+                    asset_urn = await upload_asset_to_linkedin(
+                        client=client,
+                        owner_urn=ugc_author,
+                        access_token=access_token,
+                        media_bytes=media_bytes,
+                        content_type=content_type,
+                        media_type=media_type
+                    )
+
+                if asset_urn:
+                    is_video = (media_type == "video" or content_type.startswith("video/"))
+                    cat = "VIDEO" if is_video else "IMAGE"
+                    ugc_payload = {
+                        "author": ugc_author,
+                        "lifecycleState": "PUBLISHED",
+                        "specificContent": {
+                            "com.linkedin.ugc.ShareContent": {
+                                "shareCommentary": {"text": post_content},
+                                "shareMediaCategory": cat,
+                                "media": [{
+                                    "status": "READY",
+                                    "description": {"text": media_title or "Mídia do Projeto"},
+                                    "media": asset_urn,
+                                    "title": {"text": media_title or "Demonstração do Projeto"}
+                                }]
+                            }
+                        },
+                        "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
+                    }
+                else:
+                    ugc_payload = {
+                        "author": ugc_author,
+                        "lifecycleState": "PUBLISHED",
+                        "specificContent": {
+                            "com.linkedin.ugc.ShareContent": {
+                                "shareCommentary": {"text": post_content},
+                                "shareMediaCategory": "NONE"
+                            }
+                        },
+                        "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
+                    }
+
+                resp_ugc = await client.post(LINKEDIN_UGC_POSTS_URL, json=ugc_payload, headers=ugc_headers)
+                print(f"[LinkedIn Debug UGC] Status {resp_ugc.status_code}: {resp_ugc.text[:200]}")
+                if resp_ugc.status_code in [200, 201]:
+                    data = resp_ugc.json()
+                    post_id = data.get("id", f"urn:li:share:{uuid.uuid4().hex[:8]}")
+                    print(f"🎉 [LinkedIn Success] Post com anexo de mídia publicado com sucesso! ID: {post_id}")
+                    return True, post_id, ""
+                else:
+                    last_status = resp_ugc.status_code
+                    last_err = resp_ugc.text
+
+            # 2. FLUXO SECUNDÁRIO DE FALLBACK: REST Posts API
             for author in unique_candidates:
                 rest_author = author
                 if rest_author.startswith("urn:li:member:"):
                     rest_author = rest_author.replace("urn:li:member:", "urn:li:person:")
 
-                print(f"[LinkedIn Attempt REST] Tentando autor: {rest_author}")
+                print(f"[LinkedIn Attempt REST Fallback] Tentando autor: {rest_author}")
                 rest_headers = {
                     "Authorization": f"Bearer {access_token}",
                     "LinkedIn-Version": LINKEDIN_API_VERSION,
                     "X-Restli-Protocol-Version": "2.0.0",
                     "Content-Type": "application/json"
                 }
-
-                media_urn = None
-                if media_bytes:
-                    if media_type == "video" or content_type.startswith("video/"):
-                        media_urn = await upload_video_to_linkedin(client, rest_author, access_token, media_bytes, content_type)
-                    else:
-                        media_urn = await upload_image_to_linkedin(client, rest_author, access_token, media_bytes, content_type)
 
                 rest_payload: Dict[str, Any] = {
                     "author": rest_author,
@@ -304,16 +317,7 @@ async def publish_to_linkedin(
                     "isReshareDisabledByAuthor": False
                 }
 
-                if media_urn:
-                    rest_payload["content"] = {
-                        "media": {
-                            "id": media_urn,
-                            "title": media_title or "Mídia do Projeto"
-                        }
-                    }
-
                 resp_rest = await client.post(LINKEDIN_REST_POSTS_URL, json=rest_payload, headers=rest_headers)
-                print(f"[LinkedIn Debug REST] Status {resp_rest.status_code}: {resp_rest.text[:200]}")
                 if resp_rest.status_code in [200, 201]:
                     post_id = resp_rest.headers.get("x-restli-id") or f"urn:li:share:{uuid.uuid4().hex[:8]}"
                     print(f"🎉 [LinkedIn Success] Post publicado via REST Posts API! ID: {post_id}")
@@ -322,54 +326,12 @@ async def publish_to_linkedin(
                     last_status = resp_rest.status_code
                     last_err = resp_rest.text
 
-            # 6. Tenta publicar pelo endpoint alternativo /v2/ugcPosts caso REST tenha falhado
-            for author in unique_candidates:
-                ugc_author = author
-                if ugc_author.startswith("urn:li:person:"):
-                    p_id = ugc_author.split(":")[-1]
-                    if p_id.isdigit():
-                        ugc_author = f"urn:li:member:{p_id}"
-                elif ugc_author.startswith("urn:li:organization:"):
-                    o_id = ugc_author.split(":")[-1]
-                    ugc_author = f"urn:li:company:{o_id}"
-
-                print(f"[LinkedIn Attempt UGC] Tentando autor: {ugc_author}")
-                ugc_headers = {
-                    "Authorization": f"Bearer {access_token}",
-                    "X-Restli-Protocol-Version": "2.0.0",
-                    "Content-Type": "application/json"
-                }
-                ugc_payload = {
-                    "author": ugc_author,
-                    "lifecycleState": "PUBLISHED",
-                    "specificContent": {
-                        "com.linkedin.ugc.ShareContent": {
-                            "shareCommentary": {"text": post_content},
-                            "shareMediaCategory": "NONE"
-                        }
-                    },
-                    "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
-                }
-                resp_ugc = await client.post(LINKEDIN_UGC_POSTS_URL, json=ugc_payload, headers=ugc_headers)
-                print(f"[LinkedIn Debug UGC] Status {resp_ugc.status_code}: {resp_ugc.text[:200]}")
-                if resp_ugc.status_code in [200, 201]:
-                    data = resp_ugc.json()
-                    post_id = data.get("id", f"urn:li:share:{uuid.uuid4().hex[:8]}")
-                    print(f"🎉 [LinkedIn Success] Post publicado via UGC Posts API! ID: {post_id}")
-                    return True, post_id, ""
-                else:
-                    last_status = resp_ugc.status_code
-                    last_err = resp_ugc.text
-
-            # Mensagem diagnóstica detalhada se nenhuma tentativa passou
             if not userinfo_permitted:
                 friendly_error = (
                     "O token do LinkedIn não tem permissão para identificar sua conta (erro 403 no userinfo). "
                     "Para corrigir: no LinkedIn Developers > seu App > aba 'Products', adicione 'Sign In with LinkedIn using OpenID Connect'. "
-                    "Depois em 'Auth' > 'OAuth 2.0 tools', gere um novo token marcando 'openid', 'profile' e 'w_member_social'. "
-                    "(Dica: Você pode ativar o 'Modo Simulação' nas Configurações para testar o sistema sem precisar da API do LinkedIn)."
+                    "Depois em 'Auth' > 'OAuth 2.0 tools', gere um novo token marcando 'openid', 'profile' e 'w_member_social'."
                 )
-                print(f"[LinkedIn Auth Warning] {friendly_error}")
                 return False, "", friendly_error
 
             return False, "", f"Erro LinkedIn ({last_status}): {last_err}"
