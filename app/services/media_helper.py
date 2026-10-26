@@ -1,8 +1,15 @@
 import os
 import re
+import uuid
+import asyncio
+import subprocess
 import urllib.parse
 from typing import Optional, Tuple, List, Dict, Any
 import httpx
+try:
+    import imageio_ffmpeg
+except ImportError:
+    imageio_ffmpeg = None
 from app.database import get_setting
 
 MEDIA_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "uploads")
@@ -107,14 +114,123 @@ def generate_website_screenshot_url(website_url: str) -> Optional[str]:
 
 async def generate_website_video_recording(website_url: str) -> Optional[str]:
     """
-    Grava um vídeo do site em funcionamento (scroll e animações ativas) em formato MP4.
-    Retorna a URL direta do vídeo gerado ou None se falhar.
+    Grava um vídeo do site em funcionamento realizando scroll suave cadenciado
+    do topo até o final exato da página, encerrando apenas quando chegar ao fim.
+    Salva o vídeo gravado em MP4 no servidor local e retorna a URL relativa (/static/uploads/...).
     """
     if not website_url or not (website_url.startswith("http://") or website_url.startswith("https://")):
         return None
 
+    # Tenta gravação interna de alta resolução com Playwright e rolagem suave até o rodapé
+    try:
+        from playwright.async_api import async_playwright
+
+        edge_path = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+        chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+        executable = edge_path if os.path.exists(edge_path) else (chrome_path if os.path.exists(chrome_path) else None)
+
+        async with async_playwright() as p:
+            launch_kwargs = {"headless": True}
+            if executable:
+                launch_kwargs["executable_path"] = executable
+
+            browser = await p.chromium.launch(**launch_kwargs)
+            temp_record_dir = os.path.join(MEDIA_UPLOAD_DIR, "tmp_recordings")
+            os.makedirs(temp_record_dir, exist_ok=True)
+
+            viewport_w = 1280
+            viewport_h = 720
+
+            context = await browser.new_context(
+                record_video_dir=temp_record_dir,
+                record_video_size={"width": viewport_w, "height": viewport_h},
+                viewport={"width": viewport_w, "height": viewport_h}
+            )
+
+            page = await context.new_page()
+            try:
+                await page.goto(website_url, wait_until="networkidle", timeout=25000)
+            except Exception:
+                # Se demorar muito para descarregar todos os scripts analíticos, prossegue com domcontentloaded
+                try:
+                    await page.goto(website_url, wait_until="domcontentloaded", timeout=15000)
+                except Exception:
+                    pass
+
+            await asyncio.sleep(1.0)
+
+            # Calcula altura total real do documento para saber exatamente onde é o fim do site
+            total_height = await page.evaluate(
+                "() => Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, document.body.offsetHeight)"
+            )
+            max_scroll = max(0, total_height - viewport_h)
+
+            current_y = 0
+            step = 60 # Deslocamento por passo em pixels
+            delay = 0.08 # Intervalo entre passos (~750px/segundo: ritmo fluído, nem rápido nem lento)
+
+            while current_y < max_scroll:
+                current_y += step
+                if current_y > max_scroll:
+                    current_y = max_scroll
+                await page.evaluate(f"window.scrollTo(0, {current_y})")
+                await asyncio.sleep(delay)
+
+            # Pausa breve no final para mostrar o rodapé completo da aplicação
+            await asyncio.sleep(2.0)
+
+            video_obj = page.video
+            await page.close()
+            await context.close()
+            await browser.close()
+
+            raw_video_path = await video_obj.path()
+
+            # Converte para MP4 compatível com LinkedIn usando FFmpeg
+            file_id = uuid.uuid4().hex[:10]
+            output_mp4_filename = f"site_rec_{file_id}.mp4"
+            output_mp4_path = os.path.join(MEDIA_UPLOAD_DIR, output_mp4_filename)
+
+            ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe() if imageio_ffmpeg else None
+            if not ffmpeg_bin:
+                playwright_ffmpeg = os.path.expandvars(r"%LOCALAPPDATA%\ms-playwright\ffmpeg-1013\ffmpeg-win64.exe")
+                if os.path.exists(playwright_ffmpeg):
+                    ffmpeg_bin = playwright_ffmpeg
+
+            converted = False
+            if ffmpeg_bin and os.path.exists(ffmpeg_bin):
+                cmd = [
+                    ffmpeg_bin, "-y", "-i", raw_video_path,
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    "-preset", "fast", "-crf", "24",
+                    output_mp4_path
+                ]
+                proc = subprocess.run(cmd, capture_output=True, text=True)
+                if proc.returncode == 0 and os.path.exists(output_mp4_path):
+                    converted = True
+
+            # Se a conversão por algum motivo falhar, renomeia o vídeo nativo webm
+            if not converted:
+                fallback_name = f"site_rec_{file_id}.webm"
+                fallback_path = os.path.join(MEDIA_UPLOAD_DIR, fallback_name)
+                import shutil
+                shutil.copyfile(raw_video_path, fallback_path)
+                return f"/static/uploads/{fallback_name}"
+
+            # Remove o arquivo temporário gravado
+            try:
+                os.remove(raw_video_path)
+            except Exception:
+                pass
+
+            return f"/static/uploads/{output_mp4_filename}"
+
+    except Exception as err:
+        print(f"[Media Helper] Gravação local via Playwright falhou ({err}), tentando fallback online...")
+
+    # Fallback se Playwright não puder executar no ambiente: Microlink API
     encoded = urllib.parse.quote(website_url, safe="")
-    api_endpoint = f"https://api.microlink.io/?url={encoded}&screenshot=true&screenshot.animated=true&meta=false"
+    api_endpoint = f"https://api.microlink.io/?url={encoded}&screenshot=true&screenshot.animated=true&scroll=%23footer&meta=false"
 
     try:
         async with httpx.AsyncClient(timeout=35.0) as client:
