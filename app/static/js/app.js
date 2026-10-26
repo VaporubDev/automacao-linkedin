@@ -380,10 +380,13 @@ function renderPosts(posts) {
                 <option value="image" ${p.media_type !== 'video' ? 'selected' : ''}>Imagem</option>
                 <option value="video" ${p.media_type === 'video' ? 'selected' : ''}>Vídeo</option>
               </select>
-              <button class="btn btn-secondary" style="font-size: 12px; padding: 7px 12px;" onclick="promptWebsiteScreenshot(${p.id})" title="Capturar screenshot ao vivo de um site/demo">
-                <span class="ui-icon icon-globe sm"></span> Print do Site
+              <button class="btn btn-secondary" style="font-size: 12px; padding: 7px 11px;" onclick="promptWebsiteScreenshot(${p.id})" title="Capturar foto/screenshot do site">
+                <span class="ui-icon icon-globe sm"></span> Foto do Site
               </button>
-              <label class="btn btn-secondary" style="font-size: 12px; padding: 7px 12px; cursor: pointer;" title="Fazer upload de imagem ou vídeo do seu computador">
+              <button class="btn btn-secondary" style="font-size: 12px; padding: 7px 11px;" onclick="promptWebsiteVideoRecording(${p.id})" title="Gravar vídeo em MP4 do site funcionando com rolagem e animações">
+                <span class="ui-icon icon-video sm"></span> Vídeo do Site
+              </button>
+              <label class="btn btn-secondary" style="font-size: 12px; padding: 7px 11px; cursor: pointer;" title="Fazer upload de imagem ou vídeo do seu computador">
                 <span class="ui-icon icon-save sm"></span> Upload
                 <input type="file" accept="image/*,video/*" style="display: none;" onchange="uploadPostMediaFile(${p.id}, this)">
               </label>
@@ -545,6 +548,31 @@ async function promptWebsiteScreenshot(postId) {
     }
   } catch (e) {
     showToast('Falha na conexão ao capturar site', 'error');
+  }
+}
+
+async function promptWebsiteVideoRecording(postId) {
+  const defaultUrl = 'https://vaporubdev.github.io/Portfolio/';
+  const url = prompt('Digite a URL do site/projeto para gravar um vídeo dele funcionando (scroll e animações):', defaultUrl);
+  if (!url || !url.startsWith('http')) {
+    if (url) showToast('URL inválida. Comece com http:// ou https://', 'error');
+    return;
+  }
+
+  showToast('Gravando demonstração em vídeo do site funcionando... Isso pode levar de 15 a 30 segundos.', 'info');
+  try {
+    const res = await fetch(`/api/posts/${postId}/record-site-video?website_url=${encodeURIComponent(url)}`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showToast(data.message || 'Vídeo do site gravado e anexado com sucesso!', 'success');
+      loadPosts();
+    } else {
+      showToast(data.detail || 'Erro ao gravar vídeo do site', 'error');
+    }
+  } catch (e) {
+    showToast('Falha na conexão ao gravar vídeo do site', 'error');
   }
 }
 

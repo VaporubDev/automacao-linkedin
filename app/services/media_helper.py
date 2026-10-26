@@ -96,8 +96,7 @@ async def extract_media_from_repo_readme(repo_name: str, default_branch: str = "
 
 def generate_website_screenshot_url(website_url: str) -> Optional[str]:
     """
-    Gera uma URL de captura de tela de alta resolução para o site do projeto
-    usando serviços públicos de screenshot para websites (como micropink ou thum.io).
+    Gera uma URL de captura de tela de alta resolução para o site do projeto.
     """
     if not website_url or not (website_url.startswith("http://") or website_url.startswith("https://")):
         return None
@@ -106,24 +105,58 @@ def generate_website_screenshot_url(website_url: str) -> Optional[str]:
     screenshot_url = f"https://api.microlink.io/?url={encoded}&screenshot=true&meta=false&embed=screenshot.url"
     return screenshot_url
 
-async def resolve_best_repo_media(repo_dict: Dict[str, Any]) -> Tuple[Optional[str], str, str]:
+async def generate_website_video_recording(website_url: str) -> Optional[str]:
+    """
+    Grava um vídeo do site em funcionamento (scroll e animações ativas) em formato MP4.
+    Retorna a URL direta do vídeo gerado ou None se falhar.
+    """
+    if not website_url or not (website_url.startswith("http://") or website_url.startswith("https://")):
+        return None
+
+    encoded = urllib.parse.quote(website_url, safe="")
+    api_endpoint = f"https://api.microlink.io/?url={encoded}&screenshot=true&screenshot.animated=true&meta=false"
+
+    try:
+        async with httpx.AsyncClient(timeout=35.0) as client:
+            resp = await client.get(api_endpoint)
+            if resp.status_code == 200:
+                data = resp.json().get("data", {})
+                animated_info = data.get("screenshot", {}).get("animated", {})
+                video_url = animated_info.get("url")
+                if video_url:
+                    return video_url
+    except Exception as e:
+        print(f"[Media Helper] Falha ao gravar vídeo do site ({website_url}): {e}")
+
+    return None
+
+async def resolve_best_repo_media(repo_dict: Dict[str, Any], prefer_video: bool = False) -> Tuple[Optional[str], str, str]:
     """
     Tenta determinar a melhor mídia automática para o post do repositório:
-    1. Se tiver README com imagens/vídeos de demonstração -> seleciona a mídia do README.
-    2. Se tiver site/homepage no GitHub (ex: vercel, netlify, github pages) -> gera screenshot da homepage.
-    3. Retorna (media_url, media_type, media_title)
+    1. Se prefer_video=True e houver site/homepage -> grava vídeo do site funcionando.
+    2. Se tiver README com imagens/vídeos de demonstração -> seleciona a mídia do README.
+    3. Se tiver site/homepage no GitHub -> gera screenshot da homepage.
+    4. Retorna (media_url, media_type, media_title)
     """
     repo_name = repo_dict.get("repo_name", "")
     default_branch = repo_dict.get("default_branch") or "main"
     homepage_url = (repo_dict.get("homepage_url") or "").strip()
 
+    # 1. Se foi solicitada gravação de vídeo do site
+    if prefer_video and homepage_url and homepage_url.startswith("http"):
+        video_rec = await generate_website_video_recording(homepage_url)
+        if video_rec:
+            return video_rec, "video", f"Vídeo do site {homepage_url} em ação"
+
+    # 2. Tenta extrair do README
     try:
         readme_media = await extract_media_from_repo_readme(repo_name, default_branch)
         if readme_media:
-            return readme_media["url"], readme_media["type"], readme_media.get("title", f"Screenshot de {repo_name}")
+            return readme_media["url"], readme_media["type"], readme_media.get("title", f"Demonstração de {repo_name}")
     except Exception as e:
         print(f"[Media Helper] Erro ao buscar mídia no README: {e}")
 
+    # 3. Se tiver site/homepage, gera print do site
     if homepage_url and homepage_url.startswith("http"):
         shot_url = generate_website_screenshot_url(homepage_url)
         if shot_url:

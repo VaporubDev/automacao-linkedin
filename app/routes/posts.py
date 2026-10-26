@@ -10,7 +10,12 @@ from app.services.linkedin_service import approve_and_publish_post, reject_post
 from app.services.github_service import check_all_monitored_repositories
 from app.services.ai_service import generate_linkedin_post
 from app.services.email_service import send_approval_email
-from app.services.media_helper import MEDIA_UPLOAD_DIR, get_media_type_from_filename, generate_website_screenshot_url
+from app.services.media_helper import (
+    MEDIA_UPLOAD_DIR,
+    get_media_type_from_filename,
+    generate_website_screenshot_url,
+    generate_website_video_recording
+)
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
 
@@ -160,6 +165,35 @@ async def fetch_screenshot_for_post(post_id: int, website_url: str):
         "media_url": screenshot_url,
         "media_type": "image",
         "message": "Screenshot da homepage gerada e anexada ao post!"
+    }
+
+@router.post("/{post_id}/record-site-video")
+async def record_site_video_for_post(post_id: int, website_url: str):
+    """Grava vídeo de navegação/demonstração do site em MP4 e anexa ao post."""
+    conn = get_connection()
+    post = conn.execute("SELECT id FROM posts_queue WHERE id = ?", (post_id,)).fetchone()
+    if not post:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Post não encontrado")
+
+    video_url = await generate_website_video_recording(website_url)
+    if not video_url:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Não foi possível gerar a gravação de vídeo do site. Verifique se o endereço é válido e público.")
+
+    conn.execute("""
+        UPDATE posts_queue 
+        SET media_url = ?, media_type = 'video', media_title = ?
+        WHERE id = ?
+    """, (video_url, f"Gravação ao vivo de {website_url}", post_id))
+    conn.commit()
+    conn.close()
+
+    return {
+        "success": True,
+        "media_url": video_url,
+        "media_type": "video",
+        "message": "Gravação de vídeo do site gerada e anexada com sucesso!"
     }
 
 @router.post("/manual-check")
