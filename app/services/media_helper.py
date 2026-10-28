@@ -130,16 +130,24 @@ async def generate_website_video_recording(website_url: str) -> Optional[str]:
         executable = edge_path if os.path.exists(edge_path) else (chrome_path if os.path.exists(chrome_path) else None)
 
         async with async_playwright() as p:
-            launch_kwargs = {"headless": True}
+            launch_kwargs = {"headless": True, "args": ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]}
             if executable:
                 launch_kwargs["executable_path"] = executable
 
-            browser = await p.chromium.launch(**launch_kwargs)
+            try:
+                browser = await p.chromium.launch(**launch_kwargs)
+            except Exception as launch_err:
+                if "executable_path" in launch_kwargs:
+                    launch_kwargs.pop("executable_path", None)
+                    browser = await p.chromium.launch(**launch_kwargs)
+                else:
+                    raise launch_err
+
             temp_record_dir = os.path.join(MEDIA_UPLOAD_DIR, "tmp_recordings")
             os.makedirs(temp_record_dir, exist_ok=True)
 
-            viewport_w = 1280
-            viewport_h = 720
+            viewport_w = 1440
+            viewport_h = 810
 
             context = await browser.new_context(
                 record_video_dir=temp_record_dir,
@@ -148,35 +156,46 @@ async def generate_website_video_recording(website_url: str) -> Optional[str]:
             )
 
             page = await context.new_page()
-            try:
-                await page.goto(website_url, wait_until="networkidle", timeout=25000)
-            except Exception:
-                # Se demorar muito para descarregar todos os scripts analíticos, prossegue com domcontentloaded
+            nav_success = False
+            for strategy in ["load", "domcontentloaded"]:
                 try:
-                    await page.goto(website_url, wait_until="domcontentloaded", timeout=15000)
+                    await page.goto(website_url, wait_until=strategy, timeout=15000)
+                    nav_success = True
+                    break
+                except Exception:
+                    continue
+
+            if not nav_success:
+                try:
+                    await page.goto(website_url, timeout=12000)
                 except Exception:
                     pass
 
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(1.5)
 
-            # Calcula altura total real do documento para saber exatamente onde é o fim do site
-            total_height = await page.evaluate(
-                "() => Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, document.body.offsetHeight)"
-            )
+            try:
+                total_height = await page.evaluate(
+                    "() => Math.max(document.body ? document.body.scrollHeight : 0, document.documentElement ? document.documentElement.scrollHeight : 0, 1000)"
+                )
+            except Exception:
+                total_height = 2000
+
             max_scroll = max(0, total_height - viewport_h)
 
             current_y = 0
-            step = 60 # Deslocamento por passo em pixels
-            delay = 0.08 # Intervalo entre passos (~750px/segundo: ritmo fluído, nem rápido nem lento)
+            step = 65
+            delay = 0.045
 
             while current_y < max_scroll:
                 current_y += step
                 if current_y > max_scroll:
                     current_y = max_scroll
-                await page.evaluate(f"window.scrollTo(0, {current_y})")
+                try:
+                    await page.evaluate(f"window.scrollTo(0, {current_y})")
+                except Exception:
+                    break
                 await asyncio.sleep(delay)
 
-            # Pausa breve no final para mostrar o rodapé completo da aplicação
             await asyncio.sleep(2.0)
 
             video_obj = page.video
@@ -184,46 +203,49 @@ async def generate_website_video_recording(website_url: str) -> Optional[str]:
             await context.close()
             await browser.close()
 
-            raw_video_path = await video_obj.path()
+            raw_video_path = await video_obj.path() if video_obj else None
+            if raw_video_path and os.path.exists(raw_video_path):
+                file_id = uuid.uuid4().hex[:10]
+                output_mp4_filename = f"site_rec_{file_id}.mp4"
+                output_mp4_path = os.path.join(MEDIA_UPLOAD_DIR, output_mp4_filename)
 
-            # Converte para MP4 compatível com LinkedIn usando FFmpeg
-            file_id = uuid.uuid4().hex[:10]
-            output_mp4_filename = f"site_rec_{file_id}.mp4"
-            output_mp4_path = os.path.join(MEDIA_UPLOAD_DIR, output_mp4_filename)
+                ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe() if imageio_ffmpeg else None
+                if not ffmpeg_bin:
+                    playwright_ffmpeg = os.path.expandvars(r"%LOCALAPPDATA%\ms-playwright\ffmpeg-1013\ffmpeg-win64.exe")
+                    if os.path.exists(playwright_ffmpeg):
+                        ffmpeg_bin = playwright_ffmpeg
 
-            ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe() if imageio_ffmpeg else None
-            if not ffmpeg_bin:
-                playwright_ffmpeg = os.path.expandvars(r"%LOCALAPPDATA%\ms-playwright\ffmpeg-1013\ffmpeg-win64.exe")
-                if os.path.exists(playwright_ffmpeg):
-                    ffmpeg_bin = playwright_ffmpeg
+                converted = False
+                if ffmpeg_bin and os.path.exists(ffmpeg_bin):
+                    cmd = [
+                        ffmpeg_bin, "-y",
+                        "-ss", "00:00:01",
+                        "-i", raw_video_path,
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                        "-preset", "fast", "-crf", "22",
+                        output_mp4_path
+                    ]
+                    proc = subprocess.run(cmd, capture_output=True, text=True)
+                    if proc.returncode == 0 and os.path.exists(output_mp4_path):
+                        converted = True
 
-            converted = False
-            if ffmpeg_bin and os.path.exists(ffmpeg_bin):
-                cmd = [
-                    ffmpeg_bin, "-y", "-i", raw_video_path,
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                    "-preset", "fast", "-crf", "24",
-                    output_mp4_path
-                ]
-                proc = subprocess.run(cmd, capture_output=True, text=True)
-                if proc.returncode == 0 and os.path.exists(output_mp4_path):
-                    converted = True
+                if not converted:
+                    fallback_name = f"site_rec_{file_id}.webm"
+                    fallback_path = os.path.join(MEDIA_UPLOAD_DIR, fallback_name)
+                    import shutil
+                    shutil.copyfile(raw_video_path, fallback_path)
+                    try:
+                        os.remove(raw_video_path)
+                    except Exception:
+                        pass
+                    return f"/static/uploads/{fallback_name}"
 
-            # Se a conversão por algum motivo falhar, renomeia o vídeo nativo webm
-            if not converted:
-                fallback_name = f"site_rec_{file_id}.webm"
-                fallback_path = os.path.join(MEDIA_UPLOAD_DIR, fallback_name)
-                import shutil
-                shutil.copyfile(raw_video_path, fallback_path)
-                return f"/static/uploads/{fallback_name}"
+                try:
+                    os.remove(raw_video_path)
+                except Exception:
+                    pass
 
-            # Remove o arquivo temporário gravado
-            try:
-                os.remove(raw_video_path)
-            except Exception:
-                pass
-
-            return f"/static/uploads/{output_mp4_filename}"
+                return f"/static/uploads/{output_mp4_filename}"
 
     except Exception as err:
         print(f"[Media Helper] Gravação local via Playwright falhou ({err}), tentando fallback online...")
@@ -233,13 +255,24 @@ async def generate_website_video_recording(website_url: str) -> Optional[str]:
     api_endpoint = f"https://api.microlink.io/?url={encoded}&screenshot=true&screenshot.animated=true&scroll=%23footer&meta=false"
 
     try:
-        async with httpx.AsyncClient(timeout=35.0) as client:
+        async with httpx.AsyncClient(timeout=45.0) as client:
             resp = await client.get(api_endpoint)
             if resp.status_code == 200:
                 data = resp.json().get("data", {})
                 animated_info = data.get("screenshot", {}).get("animated", {})
                 video_url = animated_info.get("url")
                 if video_url:
+                    try:
+                        dl_resp = await client.get(video_url)
+                        if dl_resp.status_code == 200 and dl_resp.content:
+                            file_id = uuid.uuid4().hex[:10]
+                            local_filename = f"site_rec_{file_id}.mp4"
+                            local_path = os.path.join(MEDIA_UPLOAD_DIR, local_filename)
+                            with open(local_path, "wb") as f:
+                                f.write(dl_resp.content)
+                            return f"/static/uploads/{local_filename}"
+                    except Exception as dl_err:
+                        print(f"[Media Helper] Falha ao baixar vídeo remoto do Microlink: {dl_err}")
                     return video_url
     except Exception as e:
         print(f"[Media Helper] Falha ao gravar vídeo do site ({website_url}): {e}")

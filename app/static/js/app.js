@@ -552,27 +552,36 @@ async function promptWebsiteScreenshot(postId) {
 }
 
 async function promptWebsiteVideoRecording(postId) {
-  const defaultUrl = 'https://vaporubdev.github.io/Portfolio/';
-  const url = prompt('Digite a URL do site/projeto para gravar um vídeo dele funcionando (scroll e animações):', defaultUrl);
+  const currentPost = (allPosts || []).find(p => p.id === postId);
+  let defaultUrl = 'https://vaporubdev.github.io/Portfolio/';
+
+  if (currentPost && currentPost.repo_name) {
+    const parts = currentPost.repo_name.split('/');
+    if (parts.length === 2) {
+      defaultUrl = `https://${parts[0].toLowerCase()}.github.io/${parts[1]}/`;
+    }
+  }
+
+  const url = prompt('Digite a URL do site/projeto para gravar um vídeo em MP4 (com rolagem suave e animações):', defaultUrl);
   if (!url || !url.startsWith('http')) {
-    if (url) showToast('URL inválida. Comece com http:// ou https://', 'error');
+    if (url) showToast('URL inválida. O link deve começar com http:// ou https://', 'error');
     return;
   }
 
-  showToast('Gravando demonstração em vídeo do site funcionando... Isso pode levar de 15 a 30 segundos.', 'info');
+  showToast('Iniciando gravação de vídeo do site... Aguarde alguns instantes.', 'info');
   try {
-    const res = await fetch(`/api/posts/${postId}/record-site-video?website_url=${encodeURIComponent(url)}`, {
+    const res = await fetch(`/api/posts/${postId}/record-site-video?website_url=${encodeURIComponent(url.trim())}`, {
       method: 'POST'
     });
     const data = await res.json();
-    if (res.ok) {
+    if (res.ok && data.success) {
       showToast(data.message || 'Vídeo do site gravado e anexado com sucesso!', 'success');
       loadPosts();
     } else {
-      showToast(data.detail || 'Erro ao gravar vídeo do site', 'error');
+      showToast(data.detail || 'Não foi possível gravar o vídeo do site informado.', 'error');
     }
   } catch (e) {
-    showToast('Falha na conexão ao gravar vídeo do site', 'error');
+    showToast('Falha na conexão ao contatar o servidor para gravação do vídeo.', 'error');
   }
 }
 
